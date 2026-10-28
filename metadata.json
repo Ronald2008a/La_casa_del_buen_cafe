@@ -1,0 +1,6 @@
+{
+  "name": "Artisanal Specialty Coffee Experience",
+  "description": "Boutique third-wave specialty coffee shop and roastery ordering platform with tactile artisanal aesthetics, origin discovery, interactive customization, and live order progression tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
