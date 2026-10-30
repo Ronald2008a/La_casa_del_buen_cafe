@@ -1,0 +1,362 @@
+{
+    "categorias": [
+        {
+            "id": 1,
+            "nombre": "Café de Especialidad (Grano\/Molido)",
+            "descripcion": "Bolsas de café de origen único tostado artesanalmente",
+            "icono": "fa-seedling",
+            "activo": true
+        },
+        {
+            "id": 2,
+            "nombre": "Bebidas Calientes Espresso Bar",
+            "descripcion": "Preparaciones clásicas y filtrados al momento",
+            "icono": "fa-mug-hot",
+            "activo": true
+        },
+        {
+            "id": 3,
+            "nombre": "Bebidas Frías & Cold Brew",
+            "descripcion": "Infusiones en frío, frappés y lattes helados",
+            "icono": "fa-glass-water",
+            "activo": true
+        },
+        {
+            "id": 4,
+            "nombre": "Repostería Artesanal",
+            "descripcion": "Acompañamientos recién horneados para tu café",
+            "icono": "fa-cookie-bite",
+            "activo": true
+        },
+        {
+            "id": 5,
+            "nombre": "Accesorios Barista",
+            "descripcion": "Prensas francesas, métodos V60, molinos y termos",
+            "icono": "fa-filter",
+            "activo": true
+        }
+    ],
+    "productos": [
+        {
+            "id": 1,
+            "categoria_id": 1,
+            "codigo": "CAF-001",
+            "nombre": "Reserva Especial Huila 500g",
+            "descripcion": "Notas a panela, frutos rojos y chocolate oscuro. Puntaje SCA 86.",
+            "origen": "Pitalito, Huila",
+            "tueste": "Medio",
+            "precio": 42000,
+            "costo": 24000,
+            "stock": 35,
+            "stock_minimo": 8,
+            "imagen_url": "https:\/\/images.unsplash.com\/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&w=600&q=80",
+            "destacado": true,
+            "activo": true
+        },
+        {
+            "id": 2,
+            "categoria_id": 1,
+            "codigo": "CAF-002",
+            "nombre": "Geisha Sierra Nevada 250g",
+            "descripcion": "Aroma floral a jazmín, acidez cítrica brillante y cuerpo sedoso.",
+            "origen": "Sierra Nevada, Magdalena",
+            "tueste": "Medio-Claro",
+            "precio": 68000,
+            "costo": 38000,
+            "stock": 14,
+            "stock_minimo": 5,
+            "imagen_url": "https:\/\/images.unsplash.com\/photo-1587734195503-904fca47e0e9?auto=format&fit=crop&w=600&q=80",
+            "destacado": true,
+            "activo": true
+        },
+        {
+            "id": 3,
+            "categoria_id": 1,
+            "codigo": "CAF-003",
+            "nombre": "Blend Espresso Intenso 500g",
+            "descripcion": "Cuerpo denso, notas a nuez tostada y cacao amargo. Ideal para máquina.",
+            "origen": "Quindío \/ Antioquia",
+            "tueste": "Medio-Oscuro",
+            "precio": 38000,
+            "costo": 21000,
+            "stock": 4,
+            "stock_minimo": 10,
+            "imagen_url": "https:\/\/images.unsplash.com\/photo-1611854779393-1b2da9d400fe?auto=format&fit=crop&w=600&q=80",
+            "destacado": false,
+            "activo": true
+        },
+        {
+            "id": 4,
+            "categoria_id": 2,
+            "codigo": "BEB-001",
+            "nombre": "Cappuccino Artesanal 8oz",
+            "descripcion": "Doble shot de espresso de origen con leche texturizada sedosa.",
+            "origen": "Huila, Colombia",
+            "tueste": "Medio",
+            "precio": 8500,
+            "costo": 2800,
+            "stock": 120,
+            "stock_minimo": 15,
+            "imagen_url": "https:\/\/images.unsplash.com\/photo-1572442388796-11668a67e53d?auto=format&fit=crop&w=600&q=80",
+            "destacado": true,
+            "activo": true
+        },
+        {
+            "id": 5,
+            "categoria_id": 2,
+            "codigo": "BEB-002",
+            "nombre": "Latte Vainilla & Caramelo 12oz",
+            "descripcion": "Espresso suave con jarabe artesanal de vainilla natural.",
+            "origen": "Quindío, Colombia",
+            "tueste": "Medio",
+            "precio": 10500,
+            "costo": 3500,
+            "stock": 95,
+            "stock_minimo": 15,
+            "imagen_url": "https:\/\/images.unsplash.com\/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=600&q=80",
+            "destacado": false,
+            "activo": true
+        },
+        {
+            "id": 6,
+            "categoria_id": 2,
+            "codigo": "BEB-003",
+            "nombre": "Filtrado V60 de Origen",
+            "descripcion": "Extracción limpia que resalta las notas frutales y florales del grano.",
+            "origen": "Cauca, Colombia",
+            "tueste": "Medio-Claro",
+            "precio": 11000,
+            "costo": 3200,
+            "stock": 80,
+            "stock_minimo": 10,
+            "imagen_url": "https:\/\/images.unsplash.com\/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=600&q=80",
+            "destacado": true,
+            "activo": true
+        },
+        {
+            "id": 7,
+            "categoria_id": 3,
+            "codigo": "FRI-001",
+            "nombre": "Cold Brew Naranja & Romero",
+            "descripcion": "Infusión en frío por 18 horas con toque cítrico refrescante.",
+            "origen": "Sierra Nevada",
+            "tueste": "Medio",
+            "precio": 12500,
+            "costo": 4000,
+            "stock": 45,
+            "stock_minimo": 10,
+            "imagen_url": "https:\/\/images.unsplash.com\/photo-1461023058943-07fcbe16d735?auto=format&fit=crop&w=600&q=80",
+            "destacado": true,
+            "activo": true
+        },
+        {
+            "id": 8,
+            "categoria_id": 3,
+            "codigo": "FRI-002",
+            "nombre": "Iced Mocha Belga",
+            "descripcion": "Espresso doble, chocolate real al 70%, leche fría y hielo.",
+            "origen": "Antioquia",
+            "tueste": "Medio-Oscuro",
+            "precio": 13500,
+            "costo": 4500,
+            "stock": 60,
+            "stock_minimo": 10,
+            "imagen_url": "https:\/\/images.unsplash.com\/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=600&q=80",
+            "destacado": false,
+            "activo": true
+        },
+        {
+            "id": 9,
+            "categoria_id": 4,
+            "codigo": "REP-001",
+            "nombre": "Croissant de Almendras",
+            "descripcion": "Hojaldre francés con mantequilla pura y crema de almendras tostadas.",
+            "origen": "Horneado Local",
+            "tueste": "N\/A",
+            "precio": 9500,
+            "costo": 3800,
+            "stock": 18,
+            "stock_minimo": 6,
+            "imagen_url": "https:\/\/images.unsplash.com\/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=600&q=80",
+            "destacado": true,
+            "activo": true
+        },
+        {
+            "id": 10,
+            "categoria_id": 4,
+            "codigo": "REP-002",
+            "nombre": "Torta Húmeda de Café y Nueces",
+            "descripcion": "Bizcocho artesanal bañado en reducción de espresso y nuez pecana.",
+            "origen": "Horneado Local",
+            "tueste": "N\/A",
+            "precio": 11500,
+            "costo": 4200,
+            "stock": 3,
+            "stock_minimo": 5,
+            "imagen_url": "https:\/\/images.unsplash.com\/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=600&q=80",
+            "destacado": false,
+            "activo": true
+        },
+        {
+            "id": 11,
+            "categoria_id": 5,
+            "codigo": "ACC-001",
+            "nombre": "Prensa Francesa Cobre 600ml",
+            "descripcion": "Acero inoxidable y vidrio borosilicato resistente al calor.",
+            "origen": "Importado",
+            "tueste": "N\/A",
+            "precio": 85000,
+            "costo": 48000,
+            "stock": 12,
+            "stock_minimo": 4,
+            "imagen_url": "https:\/\/images.unsplash.com\/photo-1544787219-7f47ccb76574?auto=format&fit=crop&w=600&q=80",
+            "destacado": false,
+            "activo": true
+        },
+        {
+            "id": 12,
+            "categoria_id": 5,
+            "codigo": "ACC-002",
+            "nombre": "Kit Dripper V60 Cerámica + Filtros",
+            "descripcion": "Cono de goteo en cerámica blanca con 100 filtros de papel.",
+            "origen": "Japón",
+            "tueste": "N\/A",
+            "precio": 98000,
+            "costo": 55000,
+            "stock": 8,
+            "stock_minimo": 3,
+            "imagen_url": "https:\/\/images.unsplash.com\/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=600&q=80",
+            "destacado": false,
+            "activo": true
+        }
+    ],
+    "clientes": [
+        {
+            "id": 1,
+            "nombre": "Cliente Mostrador",
+            "email": "mostrador@casadelbuencafe.com",
+            "telefono": "0000000000",
+            "direccion": "Venta directa en tienda",
+            "puntos": 0,
+            "created_at": "2026-10-28T09:00:00-05:00"
+        },
+        {
+            "id": 2,
+            "nombre": "Estefanía Olaya",
+            "email": "estefania@ejemplo.com",
+            "telefono": "3105551234",
+            "direccion": "Calle 85 #14-20, Bogotá",
+            "puntos": 150,
+            "created_at": "2026-10-28T10:30:00-05:00"
+        },
+        {
+            "id": 3,
+            "nombre": "Carlos Mendoza",
+            "email": "carlos.mendoza@ejemplo.com",
+            "telefono": "3158889900",
+            "direccion": "Carrera 43A #10-50, Medellín",
+            "puntos": 85,
+            "created_at": "2026-10-29T11:15:00-05:00"
+        },
+        {
+            "id": 4,
+            "nombre": "Laura Valencia",
+            "email": "laura.valencia@ejemplo.com",
+            "telefono": "3004443322",
+            "direccion": "Avenida 6N #25-10, Cali",
+            "puntos": 220,
+            "created_at": "2026-10-29T14:20:00-05:00"
+        }
+    ],
+    "pedidos": [
+        {
+            "id": 1,
+            "folio": "PED-1001",
+            "cliente_id": 2,
+            "cliente_nombre": "Estefanía Olaya",
+            "tipo": "tienda_online",
+            "metodo_pago": "tarjeta",
+            "subtotal": 59000,
+            "impuestos": 0,
+            "total": 59000,
+            "estado": "completado",
+            "direccion_entrega": "Calle 85 #14-20, Bogotá",
+            "notas": "Molienda media para cafetera de filtro",
+            "created_at": "2026-10-29T16:40:00-05:00"
+        },
+        {
+            "id": 2,
+            "folio": "POS-1002",
+            "cliente_id": 1,
+            "cliente_nombre": "Cliente Mostrador",
+            "tipo": "pos",
+            "metodo_pago": "efectivo",
+            "subtotal": 20500,
+            "impuestos": 0,
+            "total": 20500,
+            "estado": "preparando",
+            "direccion_entrega": "Consumo en barra - Mesa 4",
+            "notas": "Sin azúcar",
+            "created_at": "2026-10-29T21:15:00-05:00"
+        }
+    ],
+    "detalle_pedidos": [
+        {
+            "id": 1,
+            "pedido_id": 1,
+            "producto_id": 1,
+            "nombre_producto": "Reserva Especial Huila 500g",
+            "cantidad": 1,
+            "precio_unitario": 42000,
+            "subtotal": 42000
+        },
+        {
+            "id": 2,
+            "pedido_id": 1,
+            "producto_id": 4,
+            "nombre_producto": "Cappuccino Artesanal 8oz",
+            "cantidad": 2,
+            "precio_unitario": 8500,
+            "subtotal": 17000
+        },
+        {
+            "id": 3,
+            "pedido_id": 2,
+            "producto_id": 6,
+            "nombre_producto": "Filtrado V60 de Origen",
+            "cantidad": 1,
+            "precio_unitario": 11000,
+            "subtotal": 11000
+        },
+        {
+            "id": 4,
+            "pedido_id": 2,
+            "producto_id": 9,
+            "nombre_producto": "Croissant de Almendras",
+            "cantidad": 1,
+            "precio_unitario": 9500,
+            "subtotal": 9500
+        }
+    ],
+    "movimientos_inventario": [
+        {
+            "id": 1,
+            "producto_id": 1,
+            "tipo": "entrada",
+            "cantidad": 35,
+            "stock_anterior": 0,
+            "stock_nuevo": 35,
+            "motivo": "Lote inicial tostión octubre",
+            "created_at": "2026-10-28T08:00:00-05:00"
+        }
+    ],
+    "usuarios": [
+        {
+            "id": 1,
+            "nombre": "Administrador Principal",
+            "email": "admin@casadelbuencafe.com",
+            "rol": "admin",
+            "activo": true
+        }
+    ]
+}
