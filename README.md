@@ -1,34 +1,30 @@
-# ☕ La Casa del Buen Café — App Integral PHP + XAMPP MySQL & Supabase
+# ☕ La Casa del Buen Café — Dos Sitios Web Conectados (XAMPP MySQL & Supabase)
 
-Sistema web completo desarrollado en **PHP** conectado directamente con **XAMPP MySQL (`la_casa_del_buen_cafe` vía PDO)** y compatible con **Supabase (PostgreSQL + REST API + Auth)**.
-
----
-
-## 🗄️ Conexión Automática con XAMPP MySQL
-
-1. Abre el **XAMPP Control Panel** e inicia los módulos:
-   - **Apache**
-   - **MySQL**
-2. Abre en tu navegador:
-   👉 **`http://localhost/La_casa_del_buen_cafe/`**
-3. **¡Creación automática!** Al cargar la página por primera vez con MySQL encendido, el sistema ejecuta automáticamente [`database/mysql_schema.sql`](database/mysql_schema.sql) a través de [`config/conexion_mysql.php`](config/conexion_mysql.php), creando la base de datos **`la_casa_del_buen_cafe`** y sus 7 tablas con todos los productos iniciales.
-4. Puedes visualizar tus tablas y registros en vivo desde **phpMyAdmin**:
-   👉 **`http://localhost/phpmyadmin/index.php?route=/database/structure&db=la_casa_del_buen_cafe`**
+El proyecto cuenta con **dos sitios web independientes** conectados en tiempo real a la misma base de datos **`la_casa_del_buen_cafe`** en **XAMPP MySQL**:
 
 ---
 
-## ☁️ Cómo conectar también con Supabase (Opcional)
+## 🛍️ Sitio Web #1: Tienda en Línea Exclusiva para Clientes (Solo Compras)
+👉 **URL**: **`http://localhost/La_casa_del_buen_cafe/`** (o `index.php`)
 
-1. En la pestaña **MySQL & Supabase** dentro de la aplicación web, puedes cambiar al visor **SQL para Supabase** ([`supabase/schema.sql`](supabase/schema.sql)) o configurar tu **Project URL** y **API Key**.
-2. Cuando ambos motores están activos, cada venta, producto o cliente registrado en **XAMPP MySQL** se replica también hacia **Supabase**.
+Diseñada exclusivamente para los compradores:
+- **Catálogo Boutique de Café de Especialidad**: Filtro por categorías, buscador por notas de cata/origen, medidor visual de tueste y ordenamiento por precio.
+- **Bolsa de Compras Deslizante (Drawer) & Checkout**: Permite comprar sin ver ningún panel administrativo, acumulando puntos automáticamente con el correo electrónico.
+- **Comprobante Digital e Imprimible**: Genera al instante el folio del pedido (`WEB-XXXX`).
+- **Rastreador de Pedidos en Vivo**: El cliente puede ingresar su código `WEB-XXXX` para ver si el barista tiene su pedido `Pendiente`, `Preparando` o `Completado`.
 
 ---
 
-## 📦 Módulos Incluidos
+## 🔐 Sitio Web #2: Portal Interno para Administrador y Trabajador (Barista / Cajero)
+👉 **URL**: **`http://localhost/La_casa_del_buen_cafe/admin.php`**
 
-- **📊 Dashboard Administrativo**: KPIs de ingresos, pedidos activos, alertas de reabastecimiento y acceso en 1 clic a **phpMyAdmin**.
-- **🛒 Tienda en Línea / Catálogo de Café**: Filtro por categorías, buscador en vivo, origen y nivel de tueste, carrito de compras y checkout web.
-- **📠 Punto de Venta (POS)**: Terminal rápida para cajeros/baristas, búsqueda por código SKU, calculadora de cambio en efectivo y ticket imprimible.
-- **🔔 Centro de Pedidos**: Tablero en tiempo real para gestionar órdenes de tienda online y barra POS (`pendiente`, `preparando`, `completado`, `cancelado`).
-- **📦 Gestión de Inventario CRUD & Kardex**: Creación, edición y eliminación de productos y categorías en MySQL, alertas de stock mínimo y registro de entradas/salidas en `movimientos_inventario`.
-- **👥 Clientes & Fidelización**: Directorio CRUD de clientes con acumulación automática de puntos.
+Incluye pantalla de **Login Corporativo** con botones de acceso rápido según el rol:
+1. **Perfil Trabajador / Cajero / Barista (`rol: cajero`)**:
+   - **📠 Terminal POS**: Caja registradora táctil con miniaturas, billetes rápidos (`$10.000`, `$20.000`, `$50.000`, `$100.000`, `Exacto`) y ticket térmico con QR.
+   - **🔔 Comandas**: Recibe al instante los pedidos que hacen los clientes desde la Tienda Pública y permite cambiar su estado (`Pendiente` → `Preparando` → `Completado`).
+   - **👥 Club de Clientes**: Consulta y registro de clientes y sus puntos de fidelización.
+2. **Perfil Administrador (`rol: admin`)**:
+   - Acceso total a los módulos del trabajador **más**:
+   - **📊 Panel General (Dashboard)**: KPIs financieros y gráficos interactivos con Chart.js.
+   - **📦 Inventario CRUD & Kardex**: Creación, edición y eliminación de productos/categorías y ajustes de bodega.
+   - **🗄️ Base de Datos (XAMPP MySQL & Supabase)**: Configuración de conexión y acceso directo a **phpMyAdmin**.

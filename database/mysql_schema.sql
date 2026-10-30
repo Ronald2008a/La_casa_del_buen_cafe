@@ -141,3 +141,17 @@ INSERT IGNORE INTO `usuarios` (`id`, `nombre`, `email`, `password_hash`, `rol`) 
 (1, 'Administrador Principal', 'admin@casadelbuencafe.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin'),
 (2, 'Cajero Turno Mañana', 'caja@casadelbuencafe.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'cajero');
 
+INSERT IGNORE INTO `pedidos` (`id`, `folio`, `cliente_id`, `cliente_nombre`, `tipo`, `metodo_pago`, `subtotal`, `impuestos`, `total`, `estado`, `direccion_entrega`, `notas`) VALUES
+(1, 'WEB-1001', 2, 'Estefanía Olaya', 'tienda_online', 'tarjeta', 59000, 0, 59000, 'completado', 'Calle 85 #14-20, Bogotá', 'Molienda media para filtro'),
+(2, 'POS-1002', 1, 'Cliente Mostrador', 'pos', 'efectivo', 20500, 0, 20500, 'preparando', 'Consumo en Barra - Mesa 4', 'Sin azúcar');
+
+INSERT IGNORE INTO `detalle_pedidos` (`id`, `pedido_id`, `producto_id`, `nombre_producto`, `cantidad`, `precio_unitario`, `subtotal`) VALUES
+(1, 1, 1, 'Reserva Especial Huila 500g', 1, 42000, 42000),
+(2, 1, 4, 'Cappuccino Artesanal 8oz', 2, 8500, 17000),
+(3, 2, 6, 'Filtrado V60 de Origen', 1, 11000, 11000),
+(4, 2, 9, 'Croissant de Almendras', 1, 9500, 9500);
+
+INSERT IGNORE INTO `movimientos_inventario` (`id`, `producto_id`, `tipo`, `cantidad`, `stock_anterior`, `stock_nuevo`, `motivo`) VALUES
+(1, 1, 'entrada', 35, 0, 35, 'Lote inicial tostión octubre');
+
+

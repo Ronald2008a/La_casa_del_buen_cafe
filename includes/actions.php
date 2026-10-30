@@ -1,7 +1,9 @@
 <?php
 /**
- * Procesador de Acciones POST (Pedidos, POS, Inventario CRUD, Clientes, Auth y Configuración Supabase)
- * La Casa del Buen Café
+ * Procesador Central de Acciones POST
+ * Compartido entre:
+ *  - Sitio 1: Tienda Pública de Clientes (index.php)
+ *  - Sitio 2: Portal Interno Admin / Trabajador (admin.php)
  */
 
 require_once __DIR__ . '/../config/supabase.php';
@@ -14,9 +16,19 @@ function setFlash(string $type, string $message): void {
     $_SESSION['flash'] = ['type' => $type, 'message' => $message];
 }
 
+function redirectToPortal(string $tab = 'dashboard', string $portal = 'admin.php'): void {
+    if ($portal === 'index.php') {
+        header('Location: index.php' . ($tab ? '#' . urlencode($tab) : ''));
+    } else {
+        header('Location: admin.php?tab=' . urlencode($tab));
+    }
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
     $redirectTab = $_POST['redirect_tab'] ?? 'dashboard';
+    $sourcePortal = $_POST['source_portal'] ?? 'admin.php';
 
     switch ($action) {
         // 0. CONFIGURACIÓN Y CONEXIÓN XAMPP MYSQL
@@ -33,8 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             } else {
                 setFlash('error', 'No se pudo conectar a XAMPP MySQL. Verifica que el servicio MySQL esté iniciado en XAMPP Control Panel. Detalle: ' . $db->getMySQLError());
             }
-            header('Location: index.php?tab=configuracion');
-            exit;
+            redirectToPortal('configuracion', 'admin.php');
 
         case 'init_mysql_schema':
             if ($db->connectMySQL()) {
@@ -43,8 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             } else {
                 setFlash('error', 'El servicio MySQL de XAMPP no responde: ' . $db->getMySQLError());
             }
-            header('Location: index.php?tab=configuracion');
-            exit;
+            redirectToPortal('configuracion', 'admin.php');
 
         // 1. CONFIGURACIÓN DE SUPABASE
         case 'save_supabase_config':
@@ -61,55 +71,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     setFlash('warning', 'Credenciales guardadas. Nota: ' . $test['message']);
                 }
             }
-            header('Location: index.php?tab=configuracion');
-            exit;
+            redirectToPortal('configuracion', 'admin.php');
 
         case 'disconnect_supabase':
             $db->disconnect();
-            setFlash('info', 'Se desconectó Supabase. Ahora trabajando en Modo Local de Respaldo.');
-            header('Location: index.php?tab=configuracion');
-            exit;
+            setFlash('info', 'Se desconectó Supabase. Trabajando con XAMPP MySQL.');
+            redirectToPortal('configuracion', 'admin.php');
 
-        // 2. AUTENTICACIÓN SUPABASE AUTH / SESIÓN
+        // 2. AUTENTICACIÓN ADMIN / TRABAJADOR
         case 'login':
             $email = trim($_POST['email'] ?? '');
             $password = $_POST['password'] ?? '';
+            $rolForzado = $_POST['quick_role'] ?? '';
+
             $res = $db->signIn($email, $password);
             if ($res['ok']) {
-                setFlash('success', 'Bienvenido(a) a La Casa del Buen Café, ' . ($_SESSION['user']['nombre'] ?? $email));
-                header('Location: index.php?tab=dashboard');
+                if (!empty($rolForzado)) {
+                    $_SESSION['user']['rol'] = $rolForzado;
+                    $_SESSION['user']['nombre'] = ($rolForzado === 'admin') ? 'Administrador General' : 'Trabajador / Barista Turno';
+                }
+                $rolActual = $_SESSION['user']['rol'] ?? 'admin';
+                $tabDestino = ($rolActual === 'admin') ? 'dashboard' : 'pos';
+                setFlash('success', 'Bienvenido(a), ' . ($_SESSION['user']['nombre'] ?? $email) . ' [' . strtoupper($rolActual) . ']');
+                redirectToPortal($tabDestino, 'admin.php');
             } else {
                 setFlash('error', $res['error'] ?? 'Error al iniciar sesión');
-                header('Location: index.php?tab=login');
+                redirectToPortal('login', 'admin.php');
             }
-            exit;
 
         case 'register':
             $nombre = trim($_POST['nombre'] ?? '');
             $email = trim($_POST['email'] ?? '');
             $password = $_POST['password'] ?? '';
-            $rol = $_POST['rol'] ?? 'admin';
+            $rol = $_POST['rol'] ?? 'cajero';
             $res = $db->signUp($nombre, $email, $password, $rol);
             if ($res['ok']) {
-                setFlash('success', $res['message'] ?? 'Cuenta registrada con éxito.');
-                header('Location: index.php?tab=dashboard');
+                setFlash('success', $res['message'] ?? 'Personal registrado con éxito.');
+                redirectToPortal('dashboard', 'admin.php');
             } else {
                 setFlash('error', $res['error'] ?? 'No se pudo registrar el usuario');
-                header('Location: index.php?tab=login');
+                redirectToPortal('configuracion', 'admin.php');
             }
-            exit;
 
         case 'logout':
             unset($_SESSION['user'], $_SESSION['supabase_access_token']);
-            setFlash('info', 'Sesión cerrada correctamente.');
-            header('Location: index.php?tab=tienda');
+            setFlash('info', 'Has cerrado sesión en el portal interno.');
+            header('Location: admin.php');
             exit;
 
-        // 3. CREAR PEDIDO (DESDE POS O TIENDA EN LÍNEA)
+        // 3. CREAR PEDIDO (DESDE TIENDA PÚBLICA DE CLIENTES O DESDE POS ADMIN)
         case 'create_order':
             $tipo = $_POST['tipo'] ?? 'pos';
             $clienteId = (int)($_POST['cliente_id'] ?? 1);
             $clienteNombre = trim($_POST['cliente_nombre'] ?? 'Cliente Mostrador');
+            $clienteTelefono = trim($_POST['cliente_telefono'] ?? '');
+            $clienteEmail = trim($_POST['cliente_email'] ?? '');
             $metodoPago = $_POST['metodo_pago'] ?? 'efectivo';
             $direccion = trim($_POST['direccion_entrega'] ?? ($tipo === 'pos' ? 'Entrega en barra' : ''));
             $notas = trim($_POST['notas'] ?? '');
@@ -117,17 +133,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $items = json_decode($itemsJson, true);
 
             if (empty($items) || !is_array($items)) {
-                setFlash('error', 'El carrito está vacío. Agrega al menos un producto.');
-                header('Location: index.php?tab=' . urlencode($redirectTab));
-                exit;
+                setFlash('error', 'Tu carrito está vacío. Agrega al menos un producto.');
+                redirectToPortal($redirectTab, $sourcePortal);
             }
 
-            // Obtener cliente si se seleccionó ID
             $clientes = $db->select('clientes');
-            foreach ($clientes as $c) {
-                if ((int)$c['id'] === $clienteId && empty($_POST['cliente_nombre'])) {
-                    $clienteNombre = $c['nombre'];
-                    break;
+
+            // Si viene de la tienda pública y dejó correo/teléfono, buscar o crear cliente automáticamente
+            if ($tipo === 'tienda_online' && !empty($clienteNombre) && $clienteId <= 1) {
+                $encontrado = false;
+                if (!empty($clienteEmail)) {
+                    foreach ($clientes as $c) {
+                        if (strtolower($c['email'] ?? '') === strtolower($clienteEmail)) {
+                            $clienteId = (int)$c['id'];
+                            $encontrado = true;
+                            break;
+                        }
+                    }
+                }
+                if (!$encontrado && !empty($clienteEmail)) {
+                    $nuevoCli = $db->insert('clientes', [
+                        'nombre' => $clienteNombre,
+                        'email' => $clienteEmail,
+                        'telefono' => $clienteTelefono,
+                        'direccion' => $direccion,
+                        'puntos' => 0
+                    ]);
+                    if ($nuevoCli['ok'] && !empty($nuevoCli['data']['id'])) {
+                        $clienteId = (int)$nuevoCli['data']['id'];
+                        $clientes = $db->select('clientes');
+                    }
+                }
+            } else {
+                foreach ($clientes as $c) {
+                    if ((int)$c['id'] === $clienteId && empty($_POST['cliente_nombre'])) {
+                        $clienteNombre = $c['nombre'];
+                        break;
+                    }
                 }
             }
 
@@ -135,11 +177,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             foreach ($items as $item) {
                 $subtotal += ((float)$item['precio'] * (int)$item['cantidad']);
             }
-            $impuestos = 0; // Precios con IVA incluido
+            $impuestos = 0;
             $total = $subtotal + $impuestos;
             $prefijo = ($tipo === 'pos') ? 'POS-' : 'WEB-';
             $folio = $prefijo . rand(1000, 9999);
-
             $estadoInicial = ($tipo === 'pos') ? 'completado' : 'pendiente';
 
             $pedidoRes = $db->insert('pedidos', [
@@ -178,7 +219,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         'subtotal' => $precioUnit * $cant
                     ]);
 
-                    // Descontar stock y registrar en kardex
                     if (isset($mapaProductos[$prodId])) {
                         $stockAnt = (int)$mapaProductos[$prodId]['stock'];
                         $stockNuevo = max(0, $stockAnt - $cant);
@@ -194,11 +234,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     }
                 }
 
-                // Sumar puntos de fidelidad (1 punto por cada $1.000 COP)
+                $puntosGanados = (int)floor($total / 1000);
                 if ($clienteId > 1) {
                     foreach ($clientes as $c) {
                         if ((int)$c['id'] === $clienteId) {
-                            $nuevosPuntos = ((int)($c['puntos'] ?? 0)) + (int)floor($total / 1000);
+                            $nuevosPuntos = ((int)($c['puntos'] ?? 0)) + $puntosGanados;
                             $db->update('clientes', $clienteId, ['puntos' => $nuevosPuntos]);
                             break;
                         }
@@ -209,20 +249,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     'folio' => $folio,
                     'fecha' => date('d/m/Y H:i'),
                     'cliente' => $clienteNombre,
+                    'direccion' => $direccion,
                     'tipo' => $tipo,
                     'metodo_pago' => $metodoPago,
                     'items' => $items,
                     'total' => $total,
+                    'puntos_ganados' => $puntosGanados,
                     'notas' => $notas
                 ];
 
-                setFlash('success', "¡Pedido {$folio} registrado con éxito por $" . number_format($total, 0, ',', '.') . "!");
+                setFlash('success', "¡Pedido {$folio} confirmado con éxito por $" . number_format($total, 0, ',', '.') . "!");
             } else {
                 setFlash('error', 'Error al guardar el pedido: ' . ($pedidoRes['error'] ?? 'Desconocido'));
             }
 
-            header('Location: index.php?tab=' . urlencode($redirectTab));
-            exit;
+            redirectToPortal($redirectTab, $sourcePortal);
 
         // 4. ACTUALIZAR ESTADO DE PEDIDO
         case 'update_order_status':
@@ -230,10 +271,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $nuevoEstado = $_POST['estado'] ?? 'completado';
             if ($pedidoId > 0) {
                 $db->update('pedidos', $pedidoId, ['estado' => $nuevoEstado]);
-                setFlash('success', "Estado del pedido #{$pedidoId} actualizado a '" . strtoupper($nuevoEstado) . "'.");
+                setFlash('success', "Estado de la comanda #{$pedidoId} actualizado a '" . strtoupper($nuevoEstado) . "'.");
             }
-            header('Location: index.php?tab=pedidos');
-            exit;
+            redirectToPortal('pedidos', 'admin.php');
 
         // 5. CRUD DE PRODUCTOS (INVENTARIO)
         case 'save_product':
@@ -261,8 +301,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $res = $db->insert('productos', $data);
                 setFlash($res['ok'] ? 'success' : 'error', $res['ok'] ? 'Nuevo producto agregado al catálogo.' : ($res['error'] ?? 'Error'));
             }
-            header('Location: index.php?tab=inventario');
-            exit;
+            redirectToPortal('inventario', 'admin.php');
 
         case 'delete_product':
             $id = (int)($_POST['id'] ?? 0);
@@ -270,8 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $db->delete('productos', $id);
                 setFlash('info', 'Producto eliminado del catálogo.');
             }
-            header('Location: index.php?tab=inventario');
-            exit;
+            redirectToPortal('inventario', 'admin.php');
 
         case 'adjust_stock':
             $productoId = (int)($_POST['producto_id'] ?? 0);
@@ -288,7 +326,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     } elseif ($tipoMov === 'salida') {
                         $stockNuevo = max(0, $stockAnt - $cantidad);
                     } else {
-                        $stockNuevo = $cantidad; // ajuste exacto
+                        $stockNuevo = $cantidad;
                     }
 
                     $db->update('productos', $productoId, ['stock' => $stockNuevo]);
@@ -304,8 +342,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     break;
                 }
             }
-            header('Location: index.php?tab=inventario');
-            exit;
+            redirectToPortal('inventario', 'admin.php');
 
         // 6. CRUD DE CATEGORÍAS
         case 'save_category':
@@ -321,8 +358,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 ]);
                 setFlash('success', "Categoría '{$nombre}' creada.");
             }
-            header('Location: index.php?tab=inventario');
-            exit;
+            redirectToPortal('inventario', 'admin.php');
 
         // 7. CRUD DE CLIENTES
         case 'save_client':
@@ -341,8 +377,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $res = $db->insert('clientes', $data);
                 setFlash($res['ok'] ? 'success' : 'error', $res['ok'] ? 'Cliente registrado exitosamente.' : ($res['error'] ?? 'Error'));
             }
-            header('Location: index.php?tab=clientes');
-            exit;
+            redirectToPortal('clientes', 'admin.php');
 
         case 'delete_client':
             $id = (int)($_POST['id'] ?? 0);
@@ -352,8 +387,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             } else {
                 setFlash('warning', 'El Cliente Mostrador predeterminado no se puede eliminar.');
             }
-            header('Location: index.php?tab=clientes');
-            exit;
+            redirectToPortal('clientes', 'admin.php');
     }
 }
-
