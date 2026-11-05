@@ -72,7 +72,7 @@ unset($_SESSION['last_receipt']);
     </div>
 
     <!-- Panel Derecho (5 cols): Comanda & Caja Registradora -->
-    <div class="lg:col-span-5">
+    <div class="lg:col-span-5" id="posRegisterPanel">
         <div class="glass-card rounded-3xl shadow-xl p-5 sticky top-28 border border-amber-500/30">
             <div class="flex items-center justify-between pb-3.5 border-b border-stone-200/80">
                 <div class="flex items-center gap-2.5">
@@ -183,6 +183,18 @@ unset($_SESSION['last_receipt']);
     </div>
 </div>
 
+<!-- Botón Flotante para Pantallas Móviles para saltar a la Caja Registradora -->
+<div id="mobilePosCheckoutBtn" class="lg:hidden fixed bottom-16 left-4 right-4 z-20 hidden">
+    <button type="button" onclick="document.getElementById('posRegisterPanel').scrollIntoView({behavior:'smooth'})"
+            class="w-full py-3.5 rounded-2xl gold-gradient text-stone-950 font-extrabold text-xs sm:text-sm shadow-2xl flex items-center justify-between px-5 border border-amber-400">
+        <span class="flex items-center gap-2">
+            <i class="fa-solid fa-receipt text-base"></i>
+            <span>Ir a Cobrar Comanda</span>
+        </span>
+        <span id="mobilePosTotalLabel" class="font-mono font-black text-sm">$0</span>
+    </button>
+</div>
+
 <!-- Modal de Ticket Térmico Imprimible -->
 <?php if ($lastReceipt): ?>
 <div id="receiptModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -191,6 +203,7 @@ unset($_SESSION['last_receipt']);
             <img src="logo.php" alt="La Casa del Buen Café" class="w-16 h-16 rounded-full object-cover mx-auto mb-2 shadow border border-amber-300">
             <h4 class="font-bold text-base text-stone-900 tracking-wider">LA CASA DEL BUEN CAFÉ</h4>
             <p class="text-stone-500 text-[11px]">Tostadores de Café de Especialidad</p>
+            <p class="text-stone-600 text-[10px] font-sans mt-0.5">Calle 26 # 16-24 C.C. San Juan Plaza Local 151 Primer Piso · Neiva, Huila</p>
             <p class="text-stone-400 text-[11px] mt-1">Comprobante: <strong><?= htmlspecialchars($lastReceipt['folio']) ?></strong> · <?= htmlspecialchars($lastReceipt['fecha']) ?></p>
         </div>
         <div class="space-y-1 text-[11px]">
@@ -299,8 +312,11 @@ function setQuickCash(val) {
 function renderPosCart() {
     const container = document.getElementById('posCartContainer');
     const totalEl = document.getElementById('posTotalDisplay');
+    const mobileBtn = document.getElementById('mobilePosCheckoutBtn');
+    const mobileTotal = document.getElementById('mobilePosTotalLabel');
 
     if (posCart.length === 0) {
+        if (mobileBtn) mobileBtn.classList.add('hidden');
         container.innerHTML = `
             <div class="py-8 text-center space-y-2">
                 <i class="fa-solid fa-cash-register text-2xl text-stone-300"></i>
@@ -310,6 +326,11 @@ function renderPosCart() {
         totalEl.textContent = '$0';
         calculatePosChange();
         return;
+    }
+
+    if (mobileBtn) {
+        mobileBtn.classList.remove('hidden');
+        if (mobileTotal) mobileTotal.textContent = '$' + getPosTotal().toLocaleString('es-CO');
     }
 
     container.innerHTML = posCart.map(item => `

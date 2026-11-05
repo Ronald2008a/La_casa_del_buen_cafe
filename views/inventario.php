@@ -164,7 +164,7 @@ foreach ($productos as $p) {
                 <i class="fa-solid fa-xmark text-lg"></i>
             </button>
         </div>
-        <form method="POST" action="index.php" class="space-y-3 mt-4 text-xs">
+        <form method="POST" action="index.php" enctype="multipart/form-data" class="space-y-3 mt-4 text-xs">
             <input type="hidden" name="action" value="save_product">
             <input type="hidden" name="id" id="prodId" value="0">
 
@@ -238,9 +238,27 @@ foreach ($productos as $p) {
             </div>
 
             <div>
-                <label class="block font-semibold text-stone-700 mb-1">URL de Imagen</label>
-                <input type="url" name="imagen_url" id="prodImagen" placeholder="https://images.unsplash.com/..."
-                       class="w-full px-3 py-2 rounded-xl border border-stone-200">
+                <label class="block font-semibold text-stone-700 mb-1">Imagen del Producto (URL o Foto desde Galería)</label>
+                <div class="flex items-center gap-2">
+                    <img id="prodImagenPreview"
+                         src="https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&w=200&q=80"
+                         alt="Vista previa"
+                         class="w-11 h-11 rounded-xl object-cover border border-stone-200 bg-stone-100 shrink-0">
+
+                    <input type="text" name="imagen_url" id="prodImagen"
+                           oninput="updateImagePreviewFromUrl(this.value)"
+                           placeholder="Pega un enlace https://... o sube desde tu galería →"
+                           class="flex-1 px-3 py-2 rounded-xl border border-stone-200">
+
+                    <label for="prodImagenFile"
+                           class="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-extrabold cursor-pointer transition flex items-center gap-1.5 shrink-0 shadow-sm">
+                        <i class="fa-solid fa-images"></i>
+                        <span>Galería</span>
+                    </label>
+                    <input type="file" name="imagen_archivo" id="prodImagenFile" accept="image/*" class="hidden"
+                           onchange="previewSelectedGalleryFile(this)">
+                </div>
+                <p id="galleryFileName" class="text-[11px] text-emerald-700 font-semibold mt-1 hidden"></p>
             </div>
 
             <label class="inline-flex items-center gap-2 pt-1 cursor-pointer">
@@ -345,9 +363,41 @@ function openProductModal(prod = null) {
     document.getElementById('prodCosto').value = prod ? (prod.costo || 6000) : 6000;
     document.getElementById('prodStock').value = prod ? prod.stock : 25;
     document.getElementById('prodStockMin').value = prod ? prod.stock_minimo : 5;
-    document.getElementById('prodImagen').value = prod ? (prod.imagen_url || '') : 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&w=600&q=80';
+    const defaultImg = 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&w=600&q=80';
+    const currentImg = prod ? (prod.imagen_url || defaultImg) : defaultImg;
+    document.getElementById('prodImagen').value = currentImg;
+    document.getElementById('prodImagenPreview').src = currentImg;
+    document.getElementById('prodImagenFile').value = '';
+    const fileLabel = document.getElementById('galleryFileName');
+    if (fileLabel) {
+        fileLabel.classList.add('hidden');
+        fileLabel.textContent = '';
+    }
     document.getElementById('prodDestacado').checked = prod ? Boolean(prod.destacado) : false;
     document.getElementById('productModal').classList.remove('hidden');
+}
+
+function updateImagePreviewFromUrl(url) {
+    const preview = document.getElementById('prodImagenPreview');
+    if (preview && url.trim() !== '') {
+        preview.src = url.trim();
+    }
+}
+
+function previewSelectedGalleryFile(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const preview = document.getElementById('prodImagenPreview');
+        if (preview) preview.src = e.target.result;
+        const fileLabel = document.getElementById('galleryFileName');
+        if (fileLabel) {
+            fileLabel.textContent = '✓ Foto seleccionada de galería: ' + file.name;
+            fileLabel.classList.remove('hidden');
+        }
+    };
+    reader.readAsDataURL(file);
 }
 
 function openStockModal(id, nombre, stockActual) {

@@ -1,0 +1,23 @@
+{
+  "name": "La Casa del Buen Café — Tienda & POS",
+  "short_name": "Buen Café",
+  "description": "Tienda en línea de café de especialidad colombiano y sistema POS.",
+  "start_url": "./index.php",
+  "display": "standalone",
+  "background_color": "#FAF6F0",
+  "theme_color": "#140B07",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "logo.php",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "logo.php",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}
+

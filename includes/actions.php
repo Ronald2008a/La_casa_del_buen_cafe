@@ -278,6 +278,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         // 5. CRUD DE PRODUCTOS (INVENTARIO)
         case 'save_product':
             $id = (int)($_POST['id'] ?? 0);
+            $imagenUrl = trim($_POST['imagen_url'] ?? '');
+
+            // Si el usuario seleccionó una foto desde su galería / PC
+            if (!empty($_FILES['imagen_archivo']['tmp_name']) && $_FILES['imagen_archivo']['error'] === UPLOAD_ERR_OK) {
+                $tmpPath = $_FILES['imagen_archivo']['tmp_name'];
+                $origName = $_FILES['imagen_archivo']['name'] ?? 'foto.jpg';
+                $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+                if (!in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true)) {
+                    $ext = 'jpg';
+                }
+                $fileName = 'prod_' . time() . '_' . rand(100, 999) . '.' . $ext;
+
+                $dirHtdocs = 'C:/xampp/htdocs/La_casa_del_buen_cafe/uploads';
+                $dirLocal  = __DIR__ . '/../uploads';
+
+                if (!is_dir($dirHtdocs)) {
+                    @mkdir($dirHtdocs, 0777, true);
+                }
+                if (!is_dir($dirLocal)) {
+                    @mkdir($dirLocal, 0777, true);
+                }
+
+                $destHtdocs = $dirHtdocs . '/' . $fileName;
+                $destLocal  = $dirLocal . '/' . $fileName;
+
+                if (@move_uploaded_file($tmpPath, $destHtdocs)) {
+                    @copy($destHtdocs, $destLocal);
+                    $imagenUrl = 'uploads/' . $fileName;
+                } elseif (@move_uploaded_file($tmpPath, $destLocal)) {
+                    @copy($destLocal, $destHtdocs);
+                    $imagenUrl = 'uploads/' . $fileName;
+                }
+            }
+
+            if (empty($imagenUrl) || strpos($imagenUrl, 'blob:') === 0) {
+                $imagenUrl = 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&w=600&q=80';
+            }
+
             $data = [
                 'categoria_id' => (int)($_POST['categoria_id'] ?? 1),
                 'codigo' => strtoupper(trim($_POST['codigo'] ?? ('CAF-' . rand(100, 999)))),
@@ -289,7 +327,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 'costo' => (float)($_POST['costo'] ?? 0),
                 'stock' => (int)($_POST['stock'] ?? 0),
                 'stock_minimo' => (int)($_POST['stock_minimo'] ?? 5),
-                'imagen_url' => trim($_POST['imagen_url'] ?? 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&w=600&q=80'),
+                'imagen_url' => $imagenUrl,
                 'destacado' => isset($_POST['destacado']),
                 'activo' => true
             ];

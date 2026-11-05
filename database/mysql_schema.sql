@@ -110,26 +110,44 @@ CREATE TABLE IF NOT EXISTS `movimientos_inventario` (
 -- DATOS INICIALES (SEED DATA)
 -- ============================================================================
 
-INSERT IGNORE INTO `categorias` (`id`, `nombre`, `descripcion`, `icono`) VALUES
-(1, 'Café de Especialidad (Grano/Molido)', 'Bolsas de café de origen único tostado artesanalmente', 'fa-seedling'),
-(2, 'Bebidas Calientes Espresso Bar', 'Preparaciones clásicas y filtrados al momento', 'fa-mug-hot'),
-(3, 'Bebidas Frías & Cold Brew', 'Infusiones en frío, frappés y lattes helados', 'fa-glass-water'),
-(4, 'Repostería Artesanal', 'Acompañamientos recién horneados para tu café', 'fa-cookie-bite'),
-(5, 'Accesorios Barista', 'Prensas francesas, métodos V60, molinos y termos', 'fa-filter');
+INSERT INTO `categorias` (`id`, `nombre`, `descripcion`, `icono`) VALUES
+(1, 'Tortas', 'Tortas artesanales recién horneadas para acompañar tu café', 'fa-cake-candles'),
+(2, 'Galletas Integral', 'Galletas integrales saludables con avena, miel y semillas', 'fa-cookie-bite'),
+(3, 'Empanadas Mixtas', 'Empanadas crujientes rellenas de combinación de carnes y queso', 'fa-utensils'),
+(4, 'Empanadas de Carne', 'Empanadas tradicionales con carne sazonada de la casa', 'fa-fire-burner'),
+(5, 'Empanadas de Pollo', 'Empanadas doradas rellenas de pollo desmechado criollo', 'fa-drumstick-bite'),
+(6, 'Platanitos Mixtos', 'Mezcla crujiente de platanitos verdes salados y maduros dulces', 'fa-bowl-food'),
+(7, 'Platanitos Maduros', 'Chips artesanales de plátano maduro naturalmente dulces', 'fa-sun'),
+(8, 'Platanitos Verdes', 'Chips crocantes de plátano verde con toque de sal marina', 'fa-leaf'),
+(9, 'Bebidas', 'Café de especialidad colombiano, bebidas calientes y frías', 'fa-mug-hot')
+ON DUPLICATE KEY UPDATE
+  `nombre` = VALUES(`nombre`),
+  `descripcion` = VALUES(`descripcion`),
+  `icono` = VALUES(`icono`);
 
-INSERT IGNORE INTO `productos` (`id`, `categoria_id`, `codigo`, `nombre`, `descripcion`, `origen`, `tueste`, `precio`, `costo`, `stock`, `stock_minimo`, `imagen_url`, `destacado`) VALUES
-(1, 1, 'CAF-001', 'Reserva Especial Huila 500g', 'Notas a panela, frutos rojos y chocolate oscuro. Puntaje SCA 86.', 'Pitalito, Huila', 'Medio', 42000, 24000, 35, 8, 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&w=600&q=80', 1),
-(2, 1, 'CAF-002', 'Geisha Sierra Nevada 250g', 'Aroma floral a jazmín, acidez cítrica brillante y cuerpo sedoso.', 'Sierra Nevada, Magdalena', 'Medio-Claro', 68000, 38000, 14, 5, 'https://images.unsplash.com/photo-1587734195503-904fca47e0e9?auto=format&fit=crop&w=600&q=80', 1),
-(3, 1, 'CAF-003', 'Blend Espresso Intenso 500g', 'Cuerpo denso, notas a nuez tostada y cacao amargo. Ideal para máquina.', 'Quindío / Antioquia', 'Medio-Oscuro', 38000, 21000, 4, 10, 'https://images.unsplash.com/photo-1611854779393-1b2da9d400fe?auto=format&fit=crop&w=600&q=80', 0),
-(4, 2, 'BEB-001', 'Cappuccino Artesanal 8oz', 'Doble shot de espresso de origen con leche texturizada sedosa.', 'Huila, Colombia', 'Medio', 8500, 2800, 120, 15, 'https://images.unsplash.com/photo-1572442388796-11668a67e53d?auto=format&fit=crop&w=600&q=80', 1),
-(5, 2, 'BEB-002', 'Latte Vainilla & Caramelo 12oz', 'Espresso suave con jarabe artesanal de vainilla natural.', 'Quindío, Colombia', 'Medio', 10500, 3500, 95, 15, 'https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=600&q=80', 0),
-(6, 2, 'BEB-003', 'Filtrado V60 de Origen', 'Extracción limpia que resalta las notas frutales y florales del grano.', 'Cauca, Colombia', 'Medio-Claro', 11000, 3200, 80, 10, 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=600&q=80', 1),
-(7, 3, 'FRI-001', 'Cold Brew Naranja & Romero', 'Infusión en frío por 18 horas con toque cítrico refrescante.', 'Sierra Nevada', 'Medio', 12500, 4000, 45, 10, 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?auto=format&fit=crop&w=600&q=80', 1),
-(8, 3, 'FRI-002', 'Iced Mocha Belga', 'Espresso doble, chocolate real al 70%, leche fría y hielo.', 'Antioquia', 'Medio-Oscuro', 13500, 4500, 60, 10, 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=600&q=80', 0),
-(9, 4, 'REP-001', 'Croissant de Almendras', 'Hojaldre francés con mantequilla pura y crema de almendras tostadas.', 'Horneado Local', 'N/A', 9500, 3800, 18, 6, 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=600&q=80', 1),
-(10, 4, 'REP-002', 'Torta Húmeda de Café y Nueces', 'Bizcocho artesanal bañado en reducción de espresso y nuez pecana.', 'Horneado Local', 'N/A', 11500, 4200, 3, 5, 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=600&q=80', 0),
-(11, 5, 'ACC-001', 'Prensa Francesa Cobre 600ml', 'Acero inoxidable y vidrio borosilicato resistente al calor.', 'Importado', 'N/A', 85000, 48000, 12, 4, 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&w=600&q=80', 0),
-(12, 5, 'ACC-002', 'Kit Dripper V60 Cerámica + Filtros', 'Cono de goteo en cerámica blanca con 100 filtros de papel.', 'Japón', 'N/A', 98000, 55000, 8, 3, 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=600&q=80', 0);
+INSERT INTO `productos` (`id`, `categoria_id`, `codigo`, `nombre`, `descripcion`, `origen`, `tueste`, `precio`, `costo`, `stock`, `stock_minimo`, `imagen_url`, `destacado`) VALUES
+(1, 1, 'TOR-001', 'Torta Húmeda de Café y Nueces', 'Bizcocho artesanal bañado en reducción de espresso y nuez pecana.', 'Horneado Local', 'N/A', 11500, 4200, 20, 5, 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=600&q=80', 1),
+(2, 1, 'TOR-002', 'Torta Casera de Zanahoria y Especias', 'Con frosting suave de queso crema y canela recién molida.', 'Horneado Local', 'N/A', 10500, 3900, 15, 5, 'https://images.unsplash.com/photo-1621303837174-89787a7d4729?auto=format&fit=crop&w=600&q=80', 1),
+(3, 2, 'GAL-001', 'Galletas Integral de Avena y Arándanos', 'Paquete de galletas integrales artesanales endulzadas con miel.', 'Artesanal', 'N/A', 5500, 2000, 45, 10, 'https://images.unsplash.com/photo-1499636136210-6f4ee915583e?auto=format&fit=crop&w=600&q=80', 1),
+(4, 3, 'EMP-001', 'Empanada Mixta Especial', 'Rellena de carne desmechada, pollo y corazón de queso fundido.', 'Cocina Local', 'N/A', 4500, 1600, 60, 15, 'https://images.unsplash.com/photo-1604908554025-aaa87c152c7b?auto=format&fit=crop&w=600&q=80', 1),
+(5, 4, 'EMP-002', 'Empanada Tradicional de Carne', 'Masa crocante de maíz con carne sazonada y ají casero.', 'Cocina Local', 'N/A', 4000, 1400, 75, 15, 'https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?auto=format&fit=crop&w=600&q=80', 0),
+(6, 5, 'EMP-003', 'Empanada Criolla de Pollo', 'Pollo desmechado en guiso tradicional colombiano bien dorada.', 'Cocina Local', 'N/A', 4000, 1400, 70, 15, 'https://images.unsplash.com/photo-1626700051175-6818013e1d4f?auto=format&fit=crop&w=600&q=80', 0),
+(7, 6, 'PLA-001', 'Paquete Platanitos Mixtos 150g', 'Combinación ideal de tajaditas verdes y maduras recién hechas.', 'Quindío, Colombia', 'N/A', 6500, 2200, 50, 10, 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=600&q=80', 1),
+(8, 7, 'PLA-002', 'Platanitos Maduros Dulces 150g', 'Tajaditas crocantes de plátano maduro con su dulzor natural.', 'Valle del Cauca', 'N/A', 6000, 2000, 40, 10, 'https://images.unsplash.com/photo-1599490659213-e2b9527bd087?auto=format&fit=crop&w=600&q=80', 0),
+(9, 8, 'PLA-003', 'Platanitos Verdes con Sal Marina 150g', 'Chips de plátano verde extra crocantes con toque de sal.', 'Urabá / Caldas', 'N/A', 6000, 2000, 55, 10, 'https://images.unsplash.com/photo-1613919113640-25732ec5e61f?auto=format&fit=crop&w=600&q=80', 0),
+(10, 9, 'BEB-001', 'Cappuccino Artesanal de Origen 8oz', 'Doble shot de espresso colombiano con leche texturizada sedosa.', 'Huila, Colombia', 'Medio', 8500, 2800, 120, 15, 'https://images.unsplash.com/photo-1572442388796-11668a67e53d?auto=format&fit=crop&w=600&q=80', 1),
+(11, 9, 'BEB-002', 'Cold Brew Naranja & Café', 'Infusión de café en frío por 18 horas refrescante.', 'Sierra Nevada', 'Medio', 11500, 3800, 45, 10, 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?auto=format&fit=crop&w=600&q=80', 1),
+(12, 9, 'CAF-001', 'Café en Grano/Molido Reserva Huila 500g', 'Notas a panela, frutos rojos y chocolate oscuro. Puntaje SCA 86.', 'Pitalito, Huila', 'Medio', 42000, 24000, 35, 8, 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&w=600&q=80', 1)
+ON DUPLICATE KEY UPDATE
+  `categoria_id` = VALUES(`categoria_id`),
+  `nombre` = VALUES(`nombre`),
+  `descripcion` = VALUES(`descripcion`),
+  `origen` = VALUES(`origen`),
+  `tueste` = VALUES(`tueste`),
+  `precio` = VALUES(`precio`),
+  `costo` = VALUES(`costo`),
+  `imagen_url` = VALUES(`imagen_url`),
+  `destacado` = VALUES(`destacado`);
 
 INSERT IGNORE INTO `clientes` (`id`, `nombre`, `email`, `telefono`, `direccion`, `puntos`) VALUES
 (1, 'Cliente Mostrador', 'mostrador@casadelbuencafe.com', '0000000000', 'Venta directa en tienda', 0),

@@ -41,3 +41,44 @@ function obtenerConexionMySQL(array $customConfig = []): ?PDO {
     }
 }
 
+/**
+ * Detecta automáticamente la IPv4 local (Wi-Fi / LAN) del equipo para conectar celulares y tablets
+ */
+function obtenerIpLocalRed(): string {
+    // Si ya se está accediendo mediante una IP de red en el navegador, usar esa misma
+    $hostActual = $_SERVER['HTTP_HOST'] ?? '';
+    if (!empty($hostActual) && strpos($hostActual, 'localhost') === false && strpos($hostActual, '127.0.0.1') === false) {
+        return explode(':', $hostActual)[0];
+    }
+
+    // Intentar detectar mediante socket UDP sin enviar tráfico
+    if (function_exists('socket_create')) {
+        $sock = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+        if ($sock && @socket_connect($sock, '8.8.8.8', 53)) {
+            @socket_getsockname($sock, $ip);
+            @socket_close($sock);
+            if (!empty($ip) && $ip !== '127.0.0.1') {
+                return $ip;
+            }
+        }
+    }
+
+    $hostName = gethostname();
+    if ($hostName) {
+        $ips = gethostbynamel($hostName);
+        if (is_array($ips)) {
+            foreach ($ips as $ip) {
+                if (strpos($ip, '192.168.') === 0 || strpos($ip, '10.') === 0 || strpos($ip, '172.') === 0) {
+                    return $ip;
+                }
+            }
+            if (!empty($ips[0]) && $ips[0] !== '127.0.0.1') {
+                return $ips[0];
+            }
+        }
+    }
+
+    return '127.0.0.1';
+}
+
+

@@ -12,6 +12,50 @@ $productos      = $db->select('productos', ['select' => '*', 'order' => 'id.asc'
 $pedidos        = $db->select('pedidos', ['select' => '*', 'order' => 'id.asc']);
 $detallePedidos = $db->select('detalle_pedidos', ['select' => '*', 'order' => 'id.asc']);
 
+$categoriasMap = [];
+foreach ($categorias as $c) {
+    $categoriasMap[(int)$c['id']] = $c;
+}
+
+/**
+ * Clasifica cada producto en las etiquetas de filtro rápido del catálogo:
+ * bebidas, empaquetados, comidas, tortas, empanadas
+ */
+function getProductFilterTags(array $prod, array $categoriasMap): string {
+    $catId = (int)($prod['categoria_id'] ?? 0);
+    $catName = mb_strtolower($categoriasMap[$catId]['nombre'] ?? '');
+    $text = mb_strtolower(($prod['nombre'] ?? '') . ' ' . ($prod['descripcion'] ?? '') . ' ' . $catName);
+    
+    $tags = ['todos'];
+    
+    // Bebidas
+    if ($catId === 9 || str_contains($catName, 'bebida') || preg_match('/cappuccino|cold brew|latte|espresso|filtrado|café|cafe|bebida/i', $text)) {
+        $tags[] = 'bebidas';
+    }
+    
+    // Empaquetados (paquetes, bolsas, platanitos, galletas, café en grano/molido sellado)
+    if (in_array($catId, [2, 6, 7, 8]) || preg_match('/paquete|bolsa|platanito|galleta|500g|250g|grano|molido|empaquetad/i', $text)) {
+        $tags[] = 'empaquetados';
+    }
+    
+    // Comidas (todas las empanadas, tortas, galletas, platanitos, repostería)
+    if (in_array($catId, [1, 2, 3, 4, 5, 6, 7, 8]) || preg_match('/torta|empanada|galleta|platanito|croissant|pan|bizcocho|comida|snack/i', $text)) {
+        $tags[] = 'comidas';
+    }
+    
+    // Tortas
+    if ($catId === 1 || preg_match('/torta|pastel|pie|bizcocho/i', $text)) {
+        $tags[] = 'tortas';
+    }
+    
+    // Empanadas
+    if (in_array($catId, [3, 4, 5]) || preg_match('/empanada/i', $text)) {
+        $tags[] = 'empanadas';
+    }
+    
+    return implode(' ', array_unique($tags));
+}
+
 $lastOrderReceipt = $_SESSION['last_receipt'] ?? null;
 unset($_SESSION['last_receipt']);
 
@@ -32,12 +76,22 @@ if (!empty($folioBuscado)) {
         }
     }
 }
+
+$ipLocalRed = function_exists('obtenerIpLocalRed') ? obtenerIpLocalRed() : '127.0.0.1';
+$urlMovilTienda = "http://{$ipLocalRed}/La_casa_del_buen_cafe/";
+$urlMovilAdmin  = "http://{$ipLocalRed}/La_casa_del_buen_cafe/admin.php";
 ?>
 <!DOCTYPE html>
 <html lang="es" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="theme-color" content="#140B07">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Buen Café">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="logo.php">
     <title>La Casa del Buen Café — Tienda Online de Café de Especialidad</title>
     <link rel="icon" type="image/jpeg" href="logo.php">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -46,31 +100,48 @@ if (!empty($folioBuscado)) {
     <style>
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
-            background-color: #FAF6F0;
-            background-image:
-                radial-gradient(at 0% 0%, rgba(200, 138, 75, 0.09) 0px, transparent 50%),
-                radial-gradient(at 100% 0%, rgba(46, 26, 17, 0.06) 0px, transparent 50%);
+            background-color: #FAF7F2;
+            color: #2D241E;
         }
         .font-display { font-family: 'Playfair Display', serif; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
-        .coffee-gradient { background: linear-gradient(135deg, #140B07 0%, #2C1810 55%, #4A2C1D 100%); }
-        .gold-gradient { background: linear-gradient(135deg, #E2AA63 0%, #B87333 100%); }
+        .coffee-gradient { background: linear-gradient(135deg, #140B07 0%, #2A170F 60%, #442517 100%); }
+        .gold-gradient { background: linear-gradient(135deg, #D49A55 0%, #B87333 100%); }
         .glass-card {
-            background: rgba(255, 255, 255, 0.94);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(214, 199, 182, 0.65);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(226, 214, 200, 0.75);
         }
-        .card-hover { transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1); }
+        .card-hover { transition: all 0.22s ease-out; }
         .card-hover:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 22px 35px -12px rgba(28, 16, 11, 0.14);
+            transform: translateY(-3px);
+            box-shadow: 0 14px 28px -10px rgba(28, 16, 11, 0.12);
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* ========================================================== */
+        /* ESTANDARIZACIÓN DE TIPOGRAFÍA SEGÚN REQUERIMIENTO DEL USUARIO: */
+        /* Títulos: 20px | Botones: 14px | Párrafos: 14px              */
+        /* ========================================================== */
+        h1, h2, h3, h4, .section-title, .card-title, .modal-title, .hero-title {
+            font-size: 20px !important;
+            line-height: 1.35 !important;
+            font-weight: 700 !important;
+        }
+        p, .paragraph, .body-text, .text-desc {
+            font-size: 14px !important;
+            line-height: 1.6 !important;
+        }
+        button, .btn, a.btn, input[type="submit"], input[type="button"], .button-text, .store-filter-btn {
+            font-size: 14px !important;
         }
     </style>
 </head>
-<body class="min-h-screen flex flex-col text-stone-800 selection:bg-amber-500 selection:text-stone-950">
+<body class="min-h-screen flex flex-col pb-16 md:pb-0 text-stone-800 selection:bg-amber-500 selection:text-stone-950">
 
     <!-- Contenedor de Notificaciones Toast -->
-    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 pointer-events-none"></div>
+    <div id="toastContainer" class="fixed bottom-20 md:bottom-5 right-4 z-50 flex flex-col gap-2.5 pointer-events-none"></div>
 
     <!-- Cintillo Promocional Superior -->
     <div class="bg-[#120A06] text-amber-200/90 text-xs py-2 px-4 border-b border-amber-500/20">
@@ -80,10 +151,11 @@ if (!empty($folioBuscado)) {
                 <span class="hidden md:inline text-white/20">|</span>
                 <span class="hidden md:inline"><i class="fa-solid fa-award text-amber-400 mr-1"></i> Gana <strong>1 Punto por cada $1.000 COP</strong> en tu compra</span>
             </div>
-            <div class="flex items-center gap-4">
-                <a href="#rastrear" class="hover:text-white transition flex items-center gap-1">
-                    <i class="fa-solid fa-magnifying-glass-location text-amber-400"></i> Rastrear mi pedido
-                </a>
+            <div class="flex items-center gap-3 sm:gap-4">
+                <button type="button" onclick="document.getElementById('deviceModal').classList.remove('hidden')"
+                        class="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 hover:bg-amber-500 hover:text-stone-950 font-bold transition flex items-center gap-1.5 text-[11px]">
+                    <i class="fa-solid fa-mobile-screen-button"></i> Abrir en Celular / QR
+                </button>
                 <span class="text-white/20">|</span>
                 <a href="admin.php" class="text-stone-400 hover:text-amber-300 transition flex items-center gap-1 text-[11px]">
                     <i class="fa-solid fa-lock"></i> Portal Admin / Trabajador
@@ -114,6 +186,7 @@ if (!empty($folioBuscado)) {
                 <a href="#catalogo" class="hover:text-amber-400 transition">Nuestro Catálogo</a>
                 <a href="#origenes" class="hover:text-amber-400 transition">Orígenes & Tostión</a>
                 <a href="#rastrear" class="hover:text-amber-400 transition">Rastrear Pedido</a>
+                <a href="#ubicacion" class="hover:text-amber-400 transition flex items-center gap-1.5"><i class="fa-solid fa-location-dot text-amber-400"></i> Ubicación</a>
             </nav>
 
             <!-- Botón del Carrito Deslizante -->
@@ -146,28 +219,28 @@ if (!empty($folioBuscado)) {
 
     <!-- Hero Principal de la Tienda -->
     <section id="inicio" class="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-6 pb-4">
-        <div class="relative rounded-3xl overflow-hidden shadow-2xl border border-amber-500/30 min-h-[380px] flex items-center">
+        <div class="relative rounded-3xl overflow-hidden shadow-xl border border-stone-800/40 min-h-[300px] flex items-center">
             <img src="https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1600&q=80"
                  alt="Café de Especialidad Colombiano"
                  class="absolute inset-0 w-full h-full object-cover">
-            <div class="absolute inset-0 bg-gradient-to-r from-[#120A06]/95 via-[#1C100B]/85 to-black/30"></div>
+            <div class="absolute inset-0 bg-gradient-to-r from-[#120A06]/95 via-[#1C100B]/85 to-black/40"></div>
 
-            <div class="relative z-10 p-8 sm:p-12 w-full flex flex-col lg:flex-row items-center justify-between gap-8 text-white">
-                <div class="max-w-2xl space-y-4">
-                    <span class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-extrabold gold-gradient text-stone-950 shadow">
-                        <i class="fa-solid fa-seedling"></i> Cosecha Selecta de Altura · Puntaje SCA 86+
+            <div class="relative z-10 p-6 sm:p-10 w-full flex flex-col lg:flex-row items-center justify-between gap-6 text-white">
+                <div class="max-w-2xl space-y-3">
+                    <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold gold-gradient text-stone-950 shadow-sm">
+                        <i class="fa-solid fa-seedling"></i> Cosecha Selecta de Altura · SCA 86+
                     </span>
-                    <h1 class="font-display text-3xl sm:text-5xl font-bold leading-tight">
+                    <h1 class="font-display text-[20px] font-bold leading-snug text-white">
                         El arte del buen café, <span class="text-amber-400 italic">recién tostado</span> para ti.
                     </h1>
-                    <p class="text-stone-300 text-sm sm:text-base leading-relaxed">
-                        Descubre micro-lotes de Huila, Sierra Nevada y Cauca, bebidas preparadas por baristas expertos y repostería artesanal recién horneada. Pide en línea y recibe en casa o retira sin filas.
+                    <p class="text-[14px] text-stone-200 leading-relaxed max-w-xl">
+                        Descubre micro-lotes de Huila, bebidas preparadas por baristas expertos y repostería artesanal recién horneada. Pide en línea y recibe en casa o retira en barra sin filas.
                     </p>
-                    <div class="flex flex-wrap gap-3 pt-2">
-                        <a href="#catalogo" class="px-6 py-3.5 rounded-2xl gold-gradient text-stone-950 font-extrabold text-sm shadow-xl hover:opacity-95 transition flex items-center gap-2">
-                            <i class="fa-solid fa-mug-saucer"></i> Comprar Café Ahora
+                    <div class="flex flex-wrap gap-3 pt-1">
+                        <a href="#catalogo" class="px-5 py-2.5 rounded-xl gold-gradient text-stone-950 font-bold text-[14px] shadow-md hover:opacity-95 transition flex items-center gap-2">
+                            <i class="fa-solid fa-mug-saucer"></i> Ver Menú y Catálogo
                         </a>
-                        <a href="#rastrear" class="px-6 py-3.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm border border-white/20 backdrop-blur-md transition flex items-center gap-2">
+                        <a href="#rastrear" class="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-[14px] border border-white/20 backdrop-blur-md transition flex items-center gap-2">
                             <i class="fa-solid fa-box-open text-amber-400"></i> Estado de mi Pedido
                         </a>
                     </div>
@@ -175,9 +248,9 @@ if (!empty($folioBuscado)) {
 
                 <!-- Sello Oficial de La Casa del Buen Café en el Hero -->
                 <div class="shrink-0">
-                    <div class="p-2 rounded-full bg-gradient-to-tr from-amber-500/40 via-amber-200/30 to-transparent shadow-2xl backdrop-blur-sm">
+                    <div class="p-1.5 rounded-full bg-white/10 shadow-xl backdrop-blur-sm border border-amber-300/40">
                         <img src="logo.php" alt="Logo Oficial La Casa del Buen Café"
-                             class="w-44 h-44 sm:w-56 sm:h-56 rounded-full object-cover shadow-2xl border-4 border-[#E8B78D]">
+                             class="w-28 h-28 sm:w-36 sm:h-36 rounded-full object-cover shadow border-2 border-amber-300">
                     </div>
                 </div>
             </div>
@@ -185,145 +258,157 @@ if (!empty($folioBuscado)) {
     </section>
 
     <!-- Sellos de Confianza / Orígenes -->
-    <section id="origenes" class="max-w-7xl w-full mx-auto px-4 sm:px-6 py-5">
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="glass-card rounded-2xl p-4 flex items-center gap-3.5 shadow-sm">
-                <div class="w-11 h-11 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center text-lg shrink-0">
+    <section id="origenes" class="max-w-7xl w-full mx-auto px-4 sm:px-6 py-4">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <div class="glass-card rounded-2xl p-3.5 flex items-center gap-3 shadow-sm border border-stone-200/70">
+                <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center text-base shrink-0">
                     <i class="fa-solid fa-mountain-sun"></i>
                 </div>
                 <div>
-                    <h3 class="font-bold text-stone-900 text-xs sm:text-sm">100% Origen Único</h3>
-                    <p class="text-[11px] text-stone-500">Fincas cafeteras entre 1.650 y 2.000 m.s.n.m.</p>
+                    <h3 class="font-bold text-stone-900 text-[14px]">100% Origen Único</h3>
+                    <p class="text-[12px] text-stone-500">Fincas entre 1.650 y 2.000 m</p>
                 </div>
             </div>
-            <div class="glass-card rounded-2xl p-4 flex items-center gap-3.5 shadow-sm">
-                <div class="w-11 h-11 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center text-lg shrink-0">
+            <div class="glass-card rounded-2xl p-3.5 flex items-center gap-3 shadow-sm border border-stone-200/70">
+                <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center text-base shrink-0">
                     <i class="fa-solid fa-fire-flame-curved"></i>
                 </div>
                 <div>
-                    <h3 class="font-bold text-stone-900 text-xs sm:text-sm">Tostión Artesanal</h3>
-                    <p class="text-[11px] text-stone-500">Molienda personalizada para V60, prensa o espresso.</p>
+                    <h3 class="font-bold text-stone-900 text-[14px]">Tostión Artesanal</h3>
+                    <p class="text-[12px] text-stone-500">En grano o molienda fresca</p>
                 </div>
             </div>
-            <div class="glass-card rounded-2xl p-4 flex items-center gap-3.5 shadow-sm">
-                <div class="w-11 h-11 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center text-lg shrink-0">
+            <div class="glass-card rounded-2xl p-3.5 flex items-center gap-3 shadow-sm border border-stone-200/70">
+                <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center text-base shrink-0">
                     <i class="fa-solid fa-bolt"></i>
                 </div>
                 <div>
-                    <h3 class="font-bold text-stone-900 text-xs sm:text-sm">Entrega Express</h3>
-                    <p class="text-[11px] text-stone-500">Envío a domicilio o retiro rápido en barra.</p>
+                    <h3 class="font-bold text-stone-900 text-[14px]">Entrega Express</h3>
+                    <p class="text-[12px] text-stone-500">A domicilio o en barra</p>
                 </div>
             </div>
-            <div class="glass-card rounded-2xl p-4 flex items-center gap-3.5 shadow-sm">
-                <div class="w-11 h-11 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center text-lg shrink-0">
+            <div class="glass-card rounded-2xl p-3.5 flex items-center gap-3 shadow-sm border border-stone-200/70">
+                <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center text-base shrink-0">
                     <i class="fa-solid fa-gift"></i>
                 </div>
                 <div>
-                    <h3 class="font-bold text-stone-900 text-xs sm:text-sm">Club del Buen Café</h3>
-                    <p class="text-[11px] text-stone-500">Acumula puntos automáticamente con tu correo.</p>
+                    <h3 class="font-bold text-stone-900 text-[14px]">Club del Buen Café</h3>
+                    <p class="text-[12px] text-stone-500">Puntos automáticos</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Catálogo Principal de Productos -->
-    <section id="catalogo" class="max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+    <!-- Catálogo Principal de Productos con Filtros Específicos -->
+    <section id="catalogo" class="max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-5">
         <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
-                <span class="text-xs font-extrabold uppercase tracking-widest text-amber-700">Menú & Tostaduría</span>
-                <h2 class="font-display text-2xl sm:text-3xl font-bold text-stone-900">Explora Nuestra Selección</h2>
+                <span class="text-xs font-bold uppercase tracking-widest text-amber-800">Menú & Tostaduría</span>
+                <h2 class="font-display text-[20px] font-bold text-stone-900 leading-snug">Explora Nuestra Selección</h2>
+                <p class="text-[14px] text-stone-500 mt-0.5">Bebidas preparadas, empaquetados, comidas, tortas y empanadas artesanales</p>
             </div>
 
             <!-- Buscador y Ordenamiento -->
             <div class="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto">
-                <div class="relative sm:w-80">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-amber-700 text-xs"></i>
+                <div class="relative sm:w-72">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-stone-400 text-xs"></i>
                     <input type="text" id="storeSearch" oninput="filterStoreProducts()"
-                           placeholder="Buscar Geisha, Huila, Cold Brew, Croissant..."
-                           class="w-full pl-9 pr-4 py-2 rounded-xl border border-stone-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-amber-600">
+                           placeholder="Buscar tortas, empanadas, café..."
+                           class="w-full pl-9 pr-3.5 py-2 rounded-xl border border-stone-300 bg-white text-[14px] focus:outline-none focus:ring-2 focus:ring-amber-700">
                 </div>
-                <select id="storeSort" onchange="sortStoreProducts()" class="px-3.5 py-2 rounded-xl border border-stone-200 bg-white text-xs font-bold text-stone-700">
-                    <option value="featured">Destacados primero</option>
+                <select id="storeSort" onchange="sortStoreProducts()" class="px-3.5 py-2 rounded-xl border border-stone-300 bg-white text-[14px] font-semibold text-stone-700">
+                    <option value="featured">Destacados</option>
                     <option value="price_asc">Menor precio</option>
                     <option value="price_desc">Mayor precio</option>
                 </select>
             </div>
         </div>
 
-        <!-- Pestañas de Categorías -->
-        <div class="flex items-center gap-2 overflow-x-auto pb-2">
-            <button type="button" onclick="setStoreCategory(0)" data-cat-btn="0"
-                    class="store-cat-btn px-4 py-2.5 rounded-2xl text-xs font-extrabold gold-gradient text-stone-950 shadow transition whitespace-nowrap">
-                <i class="fa-solid fa-layer-group mr-1.5"></i> Todo el Menú (<?= count($productos) ?>)
+        <!-- Filtros Solicitados: Bebidas, Empaquetados, Comidas, Tortas y Empanadas -->
+        <div class="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar" id="catalogFiltersBar">
+            <button type="button" onclick="setCatalogFilter('todos')" data-filter-tag="todos"
+                    class="store-filter-btn px-4 py-2.5 rounded-xl font-bold bg-[#1C100B] text-amber-300 shadow-sm border border-amber-500/30 whitespace-nowrap transition flex items-center gap-2 text-[14px]">
+                <i class="fa-solid fa-layer-group text-sm"></i>
+                <span>Todos los Productos (<?= count($productos) ?>)</span>
             </button>
-            <?php foreach ($categorias as $cat): ?>
-                <button type="button" onclick="setStoreCategory(<?= (int)$cat['id'] ?>)" data-cat-btn="<?= (int)$cat['id'] ?>"
-                        class="store-cat-btn px-4 py-2.5 rounded-2xl text-xs font-bold bg-white text-stone-700 border border-stone-200/80 hover:border-amber-500 transition whitespace-nowrap">
-                    <i class="fa-solid <?= htmlspecialchars($cat['icono'] ?? 'fa-mug-hot') ?> mr-1.5 text-amber-700"></i>
-                    <?= htmlspecialchars($cat['nombre']) ?>
-                </button>
-            <?php endforeach; ?>
+            <button type="button" onclick="setCatalogFilter('bebidas')" data-filter-tag="bebidas"
+                    class="store-filter-btn px-4 py-2.5 rounded-xl font-semibold bg-white text-stone-700 hover:bg-amber-50 border border-stone-200/80 whitespace-nowrap transition flex items-center gap-2 text-[14px]">
+                <i class="fa-solid fa-mug-hot text-amber-700 text-sm"></i>
+                <span>Bebidas</span>
+            </button>
+            <button type="button" onclick="setCatalogFilter('empaquetados')" data-filter-tag="empaquetados"
+                    class="store-filter-btn px-4 py-2.5 rounded-xl font-semibold bg-white text-stone-700 hover:bg-amber-50 border border-stone-200/80 whitespace-nowrap transition flex items-center gap-2 text-[14px]">
+                <i class="fa-solid fa-box-open text-amber-700 text-sm"></i>
+                <span>Empaquetados</span>
+            </button>
+            <button type="button" onclick="setCatalogFilter('comidas')" data-filter-tag="comidas"
+                    class="store-filter-btn px-4 py-2.5 rounded-xl font-semibold bg-white text-stone-700 hover:bg-amber-50 border border-stone-200/80 whitespace-nowrap transition flex items-center gap-2 text-[14px]">
+                <i class="fa-solid fa-utensils text-amber-700 text-sm"></i>
+                <span>Comidas</span>
+            </button>
+            <button type="button" onclick="setCatalogFilter('tortas')" data-filter-tag="tortas"
+                    class="store-filter-btn px-4 py-2.5 rounded-xl font-semibold bg-white text-stone-700 hover:bg-amber-50 border border-stone-200/80 whitespace-nowrap transition flex items-center gap-2 text-[14px]">
+                <i class="fa-solid fa-cake-candles text-amber-700 text-sm"></i>
+                <span>Tortas</span>
+            </button>
+            <button type="button" onclick="setCatalogFilter('empanadas')" data-filter-tag="empanadas"
+                    class="store-filter-btn px-4 py-2.5 rounded-xl font-semibold bg-white text-stone-700 hover:bg-amber-50 border border-stone-200/80 whitespace-nowrap transition flex items-center gap-2 text-[14px]">
+                <i class="fa-solid fa-drumstick-bite text-amber-700 text-sm"></i>
+                <span>Empanadas</span>
+            </button>
         </div>
 
         <!-- Grid de Productos para Comprar -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="storeProductsGrid">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5" id="storeProductsGrid">
             <?php foreach ($productos as $prod): ?>
                 <?php
                 $agotado = ((int)$prod['stock'] <= 0);
-                $tueste = $prod['tueste'] ?? 'N/A';
-                $nivelTueste = match($tueste) {
-                    'Medio-Claro' => 2,
-                    'Medio' => 3,
-                    'Medio-Oscuro' => 4,
-                    'Oscuro' => 5,
-                    default => 0
-                };
+                $tags = getProductFilterTags($prod, $categoriasMap);
+                $catId = (int)($prod['categoria_id'] ?? 0);
+                $catNombre = $categoriasMap[$catId]['nombre'] ?? 'Especialidad';
                 ?>
-                <div class="store-product-card glass-card card-hover rounded-3xl overflow-hidden flex flex-col justify-between shadow-sm"
-                     data-cat="<?= (int)$prod['categoria_id'] ?>"
+                <div class="store-product-card glass-card card-hover rounded-2xl overflow-hidden flex flex-col justify-between shadow-sm border border-stone-200/80"
+                     data-cat="<?= $catId ?>"
+                     data-tags="<?= htmlspecialchars($tags) ?>"
                      data-price="<?= (float)$prod['precio'] ?>"
                      data-featured="<?= !empty($prod['destacado']) ? '1' : '0' ?>"
-                     data-search="<?= htmlspecialchars(strtolower($prod['nombre'] . ' ' . ($prod['descripcion'] ?? '') . ' ' . ($prod['origen'] ?? ''))) ?>">
+                     data-search="<?= htmlspecialchars(strtolower($prod['nombre'] . ' ' . ($prod['descripcion'] ?? '') . ' ' . ($prod['origen'] ?? '') . ' ' . $catNombre)) ?>">
                     <div>
-                        <div class="relative h-56 bg-stone-200 overflow-hidden group">
+                        <div class="relative h-48 bg-stone-100 overflow-hidden group">
                             <img src="<?= htmlspecialchars($prod['imagen_url'] ?: 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&w=600&q=80') ?>"
                                  alt="<?= htmlspecialchars($prod['nombre']) ?>"
-                                 class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
-                            <div class="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent"></div>
-
+                                 class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                            
                             <?php if (!empty($prod['destacado'])): ?>
-                                <span class="absolute top-3.5 left-3.5 px-3 py-1 rounded-full text-[11px] font-extrabold gold-gradient text-stone-950 shadow-md">
-                                    <i class="fa-solid fa-crown mr-1"></i> Recomendado
+                                <span class="absolute top-3 left-3 px-2.5 py-1 rounded-lg text-xs font-bold gold-gradient text-stone-950 shadow-sm">
+                                    <i class="fa-solid fa-star text-[10px] mr-1"></i> Favorito
                                 </span>
                             <?php endif; ?>
 
-                            <div class="absolute bottom-3 left-3.5 right-3.5 flex items-center justify-between text-white">
-                                <span class="text-xs font-bold flex items-center gap-1.5 text-amber-200">
-                                    <i class="fa-solid fa-location-dot"></i> <?= htmlspecialchars($prod['origen'] ?? 'Colombia') ?>
+                            <div class="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-white">
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded bg-black/60 backdrop-blur-sm text-stone-200">
+                                    <i class="fa-solid fa-tag text-[10px] text-amber-300 mr-1"></i> <?= htmlspecialchars($catNombre) ?>
                                 </span>
-                                <?php if ($nivelTueste > 0): ?>
-                                    <div class="flex items-center gap-1 bg-black/55 px-2.5 py-0.5 rounded-full text-[10px]">
-                                        <span class="text-stone-300 mr-1">Tueste <?= htmlspecialchars($tueste) ?></span>
-                                        <?php for ($i = 1; $i <= 5; $i++): ?>
-                                            <span class="w-1.5 h-1.5 rounded-full <?= $i <= $nivelTueste ? 'bg-amber-400' : 'bg-white/25' ?>"></span>
-                                        <?php endfor; ?>
-                                    </div>
+                                <?php if (!empty($prod['origen']) && $prod['origen'] !== 'N/A'): ?>
+                                    <span class="text-xs font-medium px-2 py-0.5 rounded bg-black/60 backdrop-blur-sm text-stone-300">
+                                        <?= htmlspecialchars($prod['origen']) ?>
+                                    </span>
                                 <?php endif; ?>
                             </div>
                         </div>
 
-                        <div class="p-5">
-                            <h3 class="font-display font-bold text-stone-900 text-lg leading-snug"><?= htmlspecialchars($prod['nombre']) ?></h3>
-                            <p class="text-xs text-stone-500 mt-1.5 line-clamp-2 leading-relaxed"><?= htmlspecialchars($prod['descripcion'] ?? '') ?></p>
+                        <div class="p-4 space-y-1.5">
+                            <h3 class="font-display font-bold text-stone-900 text-[20px] leading-snug line-clamp-1"><?= htmlspecialchars($prod['nombre']) ?></h3>
+                            <p class="text-[14px] text-stone-600 line-clamp-2 leading-relaxed"><?= htmlspecialchars($prod['descripcion'] ?? '') ?></p>
                         </div>
                     </div>
 
-                    <div class="px-5 pb-5 pt-3 border-t border-stone-200/60 flex items-center justify-between">
+                    <div class="px-4 pb-4 pt-2.5 border-t border-stone-100 flex items-center justify-between">
                         <div>
-                            <span class="text-[10px] uppercase tracking-wider text-stone-400 block font-bold">Precio</span>
-                            <span class="text-2xl font-extrabold font-mono text-[#1C100B]">$<?= number_format((float)$prod['precio'], 0, ',', '.') ?></span>
-                            <span class="block text-[11px] <?= $agotado ? 'text-red-600 font-bold' : 'text-emerald-700 font-semibold' ?>">
-                                <?= $agotado ? 'Agotado' : '● Disponible para envío' ?>
+                            <span class="text-xs uppercase tracking-wider text-stone-400 block font-semibold">Precio</span>
+                            <span class="text-xl font-extrabold font-mono text-[#1C100B]">$<?= number_format((float)$prod['precio'], 0, ',', '.') ?></span>
+                            <span class="block text-xs <?= $agotado ? 'text-red-600 font-bold' : 'text-emerald-700 font-medium' ?>">
+                                <?= $agotado ? 'Agotado' : '● Disponible' ?>
                             </span>
                         </div>
                         <button type="button"
@@ -335,28 +420,34 @@ if (!empty($folioBuscado)) {
                                     "stock" => (int)$prod["stock"],
                                     "codigo" => $prod["codigo"]
                                 ]) ?>)'
-                                class="px-4 py-3 rounded-2xl text-xs font-extrabold transition flex items-center gap-2 <?= $agotado ? 'bg-stone-200 text-stone-400 cursor-not-allowed' : 'coffee-gradient hover:opacity-95 text-amber-200 shadow-md hover:shadow-xl' ?>">
+                                class="px-4 py-2.5 rounded-xl text-[14px] font-bold transition flex items-center gap-2 <?= $agotado ? 'bg-stone-200 text-stone-400 cursor-not-allowed' : 'coffee-gradient hover:opacity-95 text-amber-200 shadow-sm hover:shadow' ?>">
                             <i class="fa-solid fa-cart-plus text-amber-400"></i> Comprar
                         </button>
                     </div>
                 </div>
             <?php endforeach; ?>
         </div>
+
+        <div id="storeEmptyState" class="hidden py-12 text-center space-y-2 bg-white rounded-2xl border border-stone-200">
+            <i class="fa-solid fa-magnifying-glass text-3xl text-stone-300"></i>
+            <h3 class="font-display font-bold text-stone-800 text-[20px]">No se encontraron productos</h3>
+            <p class="text-[14px] text-stone-500">Prueba con otro filtro o término de búsqueda.</p>
+        </div>
     </section>
 
     <!-- Sección de Rastreo de Pedido en Vivo para el Cliente -->
-    <section id="rastrear" class="max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
-        <div class="glass-card rounded-3xl p-6 sm:p-8 shadow-md border border-amber-500/30">
+    <section id="rastrear" class="max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
+        <div class="glass-card rounded-2xl p-6 sm:p-8 shadow-sm border border-stone-200/80">
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
                 <div class="lg:col-span-5 space-y-2">
-                    <span class="text-xs font-extrabold uppercase tracking-widest text-amber-700">Seguimiento en Línea</span>
-                    <h3 class="font-display text-2xl font-bold text-stone-900">¿Ya hiciste tu pedido? Rastréalo aquí</h3>
-                    <p class="text-xs text-stone-500">Ingresa el número de folio de tu compra (ej. <code>WEB-1001</code>) para consultar en vivo si el barista ya lo está preparando.</p>
+                    <span class="text-xs font-bold uppercase tracking-widest text-amber-800">Seguimiento en Línea</span>
+                    <h2 class="font-display font-bold text-stone-900 text-[20px] leading-snug">¿Ya hiciste tu pedido? Rastréalo aquí</h2>
+                    <p class="text-[14px] text-stone-500 leading-relaxed">Ingresa el número de folio de tu compra (ej. <code>WEB-1001</code>) para consultar si tu orden está en preparación o lista.</p>
                     <form method="GET" action="index.php#rastrear" class="flex gap-2 pt-2">
                         <input type="text" name="track_folio" value="<?= htmlspecialchars($folioBuscado) ?>" required
                                placeholder="Ej. WEB-1001"
-                               class="flex-1 px-4 py-2.5 rounded-xl border border-stone-300 font-mono text-xs uppercase focus:outline-none focus:ring-2 focus:ring-amber-600">
-                        <button type="submit" class="px-5 py-2.5 rounded-xl coffee-gradient text-amber-300 font-bold text-xs shadow">
+                               class="flex-1 px-4 py-2.5 rounded-xl border border-stone-300 font-mono text-[14px] uppercase focus:outline-none focus:ring-2 focus:ring-amber-700">
+                        <button type="submit" class="px-5 py-2.5 rounded-xl coffee-gradient text-amber-200 font-bold text-[14px] shadow-sm hover:opacity-95 transition">
                             Consultar
                         </button>
                     </form>
@@ -369,14 +460,14 @@ if (!empty($folioBuscado)) {
                             <div class="bg-white rounded-2xl p-5 border border-stone-200 shadow-sm space-y-3">
                                 <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-stone-100">
                                     <div>
-                                        <span class="font-mono font-extrabold text-base text-stone-900"><?= htmlspecialchars($pedidoRastreado['folio']) ?></span>
-                                        <p class="text-xs text-stone-500">Cliente: <strong><?= htmlspecialchars($pedidoRastreado['cliente_nombre']) ?></strong> · Destino: <?= htmlspecialchars($pedidoRastreado['direccion_entrega'] ?? '') ?></p>
+                                        <span class="font-mono font-extrabold text-[20px] text-stone-900"><?= htmlspecialchars($pedidoRastreado['folio']) ?></span>
+                                        <p class="text-[14px] text-stone-500">Cliente: <strong><?= htmlspecialchars($pedidoRastreado['cliente_nombre']) ?></strong> · Destino: <?= htmlspecialchars($pedidoRastreado['direccion_entrega'] ?? 'Entrega en barra') ?></p>
                                     </div>
-                                    <span class="px-3 py-1 rounded-full text-xs font-extrabold uppercase <?= $est === 'completado' ? 'bg-emerald-100 text-emerald-800' : ($est === 'preparando' ? 'bg-amber-100 text-amber-800' : 'bg-sky-100 text-sky-800') ?>">
+                                    <span class="px-3 py-1 rounded-full text-xs font-bold uppercase <?= $est === 'completado' ? 'bg-emerald-100 text-emerald-800' : ($est === 'preparando' ? 'bg-amber-100 text-amber-800' : 'bg-sky-100 text-sky-800') ?>">
                                         <i class="fa-solid fa-mug-hot mr-1"></i> <?= htmlspecialchars($est) ?>
                                     </span>
                                 </div>
-                                <div class="space-y-1 text-xs">
+                                <div class="space-y-1.5 text-[14px]">
                                     <?php foreach ($itemsRastreados as $it): ?>
                                         <div class="flex justify-between text-stone-700">
                                             <span><strong><?= (int)$it['cantidad'] ?>x</strong> <?= htmlspecialchars($it['nombre_producto']) ?></span>
@@ -384,35 +475,151 @@ if (!empty($folioBuscado)) {
                                         </div>
                                     <?php endforeach; ?>
                                 </div>
-                                <div class="pt-2 border-t border-stone-100 flex justify-between font-extrabold text-sm">
+                                <div class="pt-2.5 border-t border-stone-100 flex justify-between font-extrabold text-[14px]">
                                     <span>Total del Pedido</span>
-                                    <span class="font-mono text-[#1C100B]">$<?= number_format((float)$pedidoRastreado['total'], 0, ',', '.') ?></span>
+                                    <span class="font-mono text-[#1C100B] text-base">$<?= number_format((float)$pedidoRastreado['total'], 0, ',', '.') ?></span>
                                 </div>
                             </div>
                         <?php else: ?>
-                            <div class="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                            <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-[14px] text-amber-900">
                                 No encontramos ningún pedido con el folio <strong><?= htmlspecialchars($folioBuscado) ?></strong>. Verifica el código en tu comprobante.
                             </div>
                         <?php endif; ?>
                     <?php else: ?>
-                        <div class="grid grid-cols-3 gap-3 text-center text-xs">
-                            <div class="p-4 rounded-2xl bg-white/80 border border-stone-200/70">
-                                <i class="fa-solid fa-file-invoice text-xl text-amber-700 mb-1.5"></i>
-                                <p class="font-bold text-stone-800">1. Recibe tu Folio</p>
-                                <p class="text-[11px] text-stone-500">Al confirmar tu compra obtienes un código `WEB-XXXX`.</p>
+                        <div class="grid grid-cols-3 gap-3 text-center">
+                            <div class="p-4 rounded-xl bg-white border border-stone-200/80 shadow-sm">
+                                <i class="fa-solid fa-file-invoice text-lg text-amber-800 mb-1.5"></i>
+                                <h3 class="font-bold text-stone-800 text-[14px]">1. Folio</h3>
+                                <p class="text-[12px] text-stone-500">Recibes tu código de orden.</p>
                             </div>
-                            <div class="p-4 rounded-2xl bg-white/80 border border-stone-200/70">
-                                <i class="fa-solid fa-fire-burner text-xl text-amber-700 mb-1.5"></i>
-                                <p class="font-bold text-stone-800">2. Preparación Barista</p>
-                                <p class="text-[11px] text-stone-500">Nuestro equipo recibe tu comanda en tiempo real.</p>
+                            <div class="p-4 rounded-xl bg-white border border-stone-200/80 shadow-sm">
+                                <i class="fa-solid fa-fire-burner text-lg text-amber-800 mb-1.5"></i>
+                                <h3 class="font-bold text-stone-800 text-[14px]">2. Barista</h3>
+                                <p class="text-[12px] text-stone-500">Preparación inmediata.</p>
                             </div>
-                            <div class="p-4 rounded-2xl bg-white/80 border border-stone-200/70">
-                                <i class="fa-solid fa-box-check text-xl text-emerald-600 mb-1.5"></i>
-                                <p class="font-bold text-stone-800">3. Listo / En Camino</p>
-                                <p class="text-[11px] text-stone-500">Recibe tu café recién tostado o retíralo en barra.</p>
+                            <div class="p-4 rounded-xl bg-white border border-stone-200/80 shadow-sm">
+                                <i class="fa-solid fa-box-check text-lg text-emerald-600 mb-1.5"></i>
+                                <h3 class="font-bold text-stone-800 text-[14px]">3. Listo</h3>
+                                <p class="text-[12px] text-stone-500">Entrega rápida en barra o envío.</p>
                             </div>
                         </div>
                     <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================================================================== -->
+    <!-- SECCIÓN APARTADO DE UBICACIÓN & TIENDA FÍSICA                     -->
+    <!-- ================================================================== -->
+    <section id="ubicacion" class="max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
+        <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1A100B] via-[#26150D] to-[#120A06] text-white border border-stone-800/80 shadow-xl p-6 sm:p-9">
+            <div class="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                <!-- Columna Izquierda: Información Detallada y Dirección Oficial -->
+                <div class="lg:col-span-7 space-y-5">
+                    <div class="space-y-2">
+                        <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold gold-gradient text-stone-950 shadow-sm">
+                            <i class="fa-solid fa-location-dot"></i> Punto Físico de Venta · Neiva, Huila
+                        </span>
+                        <h2 class="font-display text-[20px] font-bold leading-snug text-white">
+                            Visítanos en Nuestra Cafetería & <span class="text-amber-400 italic">Barra de Especialidad</span>
+                        </h2>
+                        <p class="text-[14px] text-stone-300 leading-relaxed max-w-xl">
+                            Ven a disfrutar de una taza preparada por baristas profesionales, granos recién tostados de las mejores fincas del Huila, tortas caseras y empanadas artesanales.
+                        </p>
+                    </div>
+
+                    <!-- Tarjeta Principal con la Dirección Destacada -->
+                    <div class="p-5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 space-y-3.5 shadow-inner">
+                        <div class="flex items-start gap-3.5">
+                            <div class="w-10 h-10 rounded-xl gold-gradient text-stone-950 flex items-center justify-center text-lg font-black shrink-0 shadow mt-0.5">
+                                <i class="fa-solid fa-map-location-dot"></i>
+                            </div>
+                            <div class="space-y-1">
+                                <span class="text-xs font-bold uppercase tracking-wider text-amber-300">Dirección Oficial</span>
+                                <h3 class="text-[20px] font-bold text-white leading-snug">
+                                    Calle 26 # 16-24 Centro Comercial San Juan Plaza Local 151 Primer Piso, Neiva-Huila
+                                </h3>
+                                <p class="text-[14px] text-stone-300 flex items-center gap-2 pt-0.5">
+                                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
+                                    <span>Punto de atención al público, pedidos en mesa y retiro en barra</span>
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Horario de Atención del Local (Lunes-Viernes y Sábados-Domingos) -->
+                        <div class="pt-3 border-t border-white/10">
+                            <div class="p-3.5 rounded-xl bg-black/35 border border-white/5 space-y-2">
+                                <div class="flex items-center gap-2 text-white font-bold text-[14px]">
+                                    <i class="fa-regular fa-clock text-amber-400"></i>
+                                    <span>Horario de Atención</span>
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[14px]">
+                                    <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 border border-white/5">
+                                        <span class="text-stone-300 font-medium"><i class="fa-regular fa-calendar-days text-amber-400/80 mr-1.5"></i> Lunes - Viernes</span>
+                                        <span class="font-mono font-bold text-amber-300">9:00 AM - 8:00 PM</span>
+                                    </div>
+                                    <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 border border-white/5">
+                                        <span class="text-stone-300 font-medium"><i class="fa-regular fa-calendar-days text-amber-400/80 mr-1.5"></i> Sábados - Domingos</span>
+                                        <span class="font-mono font-bold text-amber-300">10:00 AM - 8:00 PM</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Botones de Acción (Abrir en Google Maps, Redes y Contacto) -->
+                    <div class="flex flex-wrap items-center gap-2.5 pt-1">
+                        <a href="https://www.google.com/maps/search/?api=1&query=Calle+26+%23+16-24+Centro+Comercial+San+Juan+Plaza+Local+151+Neiva+Huila"
+                           target="_blank" rel="noopener noreferrer"
+                           class="px-5 py-2.5 rounded-xl gold-gradient text-stone-950 font-bold text-[14px] shadow-md hover:scale-105 transition flex items-center gap-2">
+                            <i class="fa-solid fa-diamond-turn-right text-sm"></i> Abrir en Google Maps
+                        </a>
+
+                        <a href="https://www.facebook.com/sanjuanplaza" target="_blank" rel="noopener noreferrer"
+                           class="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-[#1877F2] text-white font-semibold text-[14px] border border-white/20 transition flex items-center gap-2">
+                            <i class="fa-brands fa-facebook text-sm"></i> Facebook San Juan Plaza
+                        </a>
+
+                        <a href="https://www.instagram.com/lacasadel_buencafe/" target="_blank" rel="noopener noreferrer"
+                           class="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-gradient-to-r hover:from-[#833ab4] hover:via-[#fd1d1d] hover:to-[#fcb045] text-white font-semibold text-[14px] border border-white/20 transition flex items-center gap-2">
+                            <i class="fa-brands fa-instagram text-sm"></i> Instagram @lacasadel_buencafe
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Columna Derecha: Mapa Interactivo Embebido & Card Visual de Fachada / Barra -->
+                <div class="lg:col-span-5 space-y-3.5">
+                    <!-- Mapa interactivo en iframe centrado en San Juan Plaza Neiva -->
+                    <div class="relative rounded-2xl overflow-hidden border border-stone-700 shadow-xl bg-stone-900 h-64 sm:h-72">
+                        <iframe
+                            title="Ubicación San Juan Plaza Neiva"
+                            class="w-full h-full border-0 filter contrast-105 brightness-95"
+                            loading="lazy"
+                            allowfullscreen
+                            referrerpolicy="no-referrer-when-downgrade"
+                            src="https://maps.google.com/maps?q=Centro+Comercial+San+Juan+Plaza+Neiva+Calle+26+%23+16-24&t=&z=16&ie=UTF8&iwloc=&output=embed">
+                        </iframe>
+                        <div class="absolute bottom-2 left-2 right-2 bg-[#120A06]/90 backdrop-blur-md px-3 py-2 rounded-xl border border-white/10 flex items-center justify-between text-xs">
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-store text-amber-400"></i>
+                                <span class="font-bold text-white text-[12px]">San Juan Plaza · Local 151 (Piso 1)</span>
+                            </div>
+                            <span class="text-[11px] text-amber-300 font-mono">Neiva - Huila</span>
+                        </div>
+                    </div>
+
+                    <!-- Mini banner de servicios del punto físico -->
+                    <div class="grid grid-cols-2 gap-2 text-center text-[12px]">
+                        <div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                            <i class="fa-solid fa-square-parking text-amber-400 text-sm mb-1 block"></i>
+                            <span class="text-stone-300 font-medium">Parqueadero</span>
+                        </div>
+                        <div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                            <i class="fa-solid fa-bag-shopping text-amber-400 text-sm mb-1 block"></i>
+                            <span class="text-stone-300 font-medium">Pick-up Barra</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -518,6 +725,12 @@ if (!empty($folioBuscado)) {
                 <span class="text-[11px] font-extrabold uppercase tracking-widest text-emerald-700 block pt-1">¡Compra Confirmada!</span>
                 <h3 class="font-display text-2xl font-bold text-stone-900">Gracias por tu pedido, <?= htmlspecialchars($lastOrderReceipt['cliente']) ?></h3>
                 <p class="text-stone-500">Nuestro equipo de baristas ya recibió tu orden en el sistema.</p>
+                <div class="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-stone-700 text-[11px] text-left">
+                    <p class="font-bold text-amber-900 flex items-center gap-1.5 mb-0.5">
+                        <i class="fa-solid fa-location-dot text-amber-700"></i> Punto de Retiro / Atención:
+                    </p>
+                    <p class="text-stone-600">Calle 26 # 16-24 Centro Comercial San Juan Plaza Local 151 Primer Piso, Neiva - Huila</p>
+                </div>
             </div>
 
             <div class="bg-stone-900 text-white rounded-2xl p-4 flex items-center justify-between">
@@ -552,23 +765,137 @@ if (!empty($folioBuscado)) {
     </div>
     <?php endif; ?>
 
-    <!-- Pie de Página de la Tienda Pública -->
-    <footer class="coffee-gradient text-stone-300 border-t border-amber-500/20 mt-auto">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
-            <div class="flex items-center gap-3">
-                <img src="logo.php" alt="La Casa del Buen Café" class="w-11 h-11 rounded-full object-cover border border-amber-300/60 shadow">
+    <!-- Pie de Página Oficial con Redes Sociales -->
+    <footer class="bg-[#232221] text-white mt-auto">
+        <!-- Parte superior del footer con marca, dirección y acceso interno -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-8 py-7 flex flex-col md:flex-row items-center justify-between gap-6 text-xs">
+            <div class="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+                <img src="logo.php" alt="La Casa del Buen Café" class="w-13 h-13 w-12 h-12 rounded-full object-cover border border-amber-300/60 shadow-lg">
                 <div>
-                    <p class="font-display font-bold text-white text-sm">La Casa del Buen Café — Tienda en Línea</p>
-                    <p class="text-[11px] text-stone-400">Café 100% Colombiano de Especialidad · Todos los derechos reservados.</p>
+                    <p class="font-display font-bold text-white text-base">La Casa del Buen Café — Tienda en Línea</p>
+                    <p class="text-[11px] text-stone-400">Café 100% Colombiano de Especialidad · Tostión Artesanal</p>
+                    <p class="text-xs text-amber-300 font-medium mt-1 flex items-center justify-center sm:justify-start gap-1.5">
+                        <i class="fa-solid fa-location-dot text-amber-400"></i>
+                        <span>Calle 26 # 16-24 Centro Comercial San Juan Plaza Local 151 Primer Piso, Neiva-Huila</span>
+                    </p>
                 </div>
             </div>
-            <div class="flex items-center gap-4">
-                <a href="admin.php" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-amber-300 font-bold transition flex items-center gap-2">
-                    <i class="fa-solid fa-user-lock"></i> Ir al Portal de Administrador / Trabajador →
+            <div class="flex flex-wrap items-center justify-center gap-3">
+                <a href="#ubicacion" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-stone-200 font-bold transition flex items-center gap-2">
+                    <i class="fa-solid fa-map-location-dot text-amber-400"></i> Ver Punto Físico
+                </a>
+                <a href="admin.php" class="px-4 py-2 rounded-xl gold-gradient text-stone-950 font-extrabold transition flex items-center gap-2 shadow">
+                    <i class="fa-solid fa-user-lock"></i> Portal Interno →
                 </a>
             </div>
         </div>
+
+        <!-- Barra inferior con Facebook e Instagram centrados -->
+        <div class="border-t border-white/60">
+            <div class="max-w-7xl mx-auto px-4 sm:px-8 py-6 grid grid-cols-1 sm:grid-cols-3 items-center gap-4">
+                <div class="text-center sm:text-left text-xs text-stone-300">
+                    <i class="fa-solid fa-store text-amber-400 mr-1.5"></i>
+                    <span>C.C. San Juan Plaza · Local 151 Primer Piso, Neiva</span>
+                </div>
+
+                <!-- Logos de Redes Sociales (En el Centro) -->
+                <div class="flex items-center justify-center gap-6">
+                    <!-- Facebook: https://www.facebook.com/sanjuanplaza -->
+                    <a href="https://www.facebook.com/sanjuanplaza" target="_blank" rel="noopener noreferrer"
+                       title="Síguenos en Facebook"
+                       class="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:scale-110 transition shadow">
+                        <i class="fa-brands fa-facebook-f text-[#1877F2] text-lg translate-y-[1px]"></i>
+                    </a>
+
+                    <!-- Instagram: https://www.instagram.com/lacasadel_buencafe/ -->
+                    <a href="https://www.instagram.com/lacasadel_buencafe/" target="_blank" rel="noopener noreferrer"
+                       title="Síguenos en Instagram"
+                       class="w-9 h-9 rounded-lg border-2 border-white flex items-center justify-center text-white hover:scale-110 hover:bg-white/10 transition">
+                        <i class="fa-brands fa-instagram text-lg"></i>
+                    </a>
+                </div>
+
+                <!-- Copyright (Derecha) -->
+                <div class="text-sm font-medium tracking-wide text-white/95 text-center sm:text-right">
+                    © <?= date('Y') ?> - La Casa del Buen Café<sup>®</sup>
+                </div>
+            </div>
+        </div>
     </footer>
+
+    <!-- Barra de Navegación Inferior para Dispositivos Móviles (Smartphones) -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-[#140B07]/95 backdrop-blur-md text-stone-300 border-t border-amber-500/30 z-30 px-2 py-1.5 flex items-center justify-around shadow-2xl">
+        <a href="#inicio" class="flex flex-col items-center py-1 px-2.5 text-[11px] font-bold hover:text-amber-400">
+            <i class="fa-solid fa-house text-sm text-amber-400 mb-0.5"></i>
+            <span>Inicio</span>
+        </a>
+        <a href="#catalogo" class="flex flex-col items-center py-1 px-2.5 text-[11px] font-bold hover:text-amber-400">
+            <i class="fa-solid fa-mug-hot text-sm text-amber-400 mb-0.5"></i>
+            <span>Menú</span>
+        </a>
+        <a href="#rastrear" class="flex flex-col items-center py-1 px-2.5 text-[11px] font-bold hover:text-amber-400">
+            <i class="fa-solid fa-magnifying-glass-location text-sm text-amber-400 mb-0.5"></i>
+            <span>Rastrear</span>
+        </a>
+        <a href="#ubicacion" class="flex flex-col items-center py-1 px-2.5 text-[11px] font-bold hover:text-amber-400">
+            <i class="fa-solid fa-location-dot text-sm text-amber-400 mb-0.5"></i>
+            <span>Ubicación</span>
+        </a>
+        <button type="button" onclick="toggleCartDrawer(true)" class="relative flex flex-col items-center py-1 px-2.5 text-[11px] font-extrabold text-amber-300">
+            <i class="fa-solid fa-bag-shopping text-sm mb-0.5"></i>
+            <span>Mi Bolsa</span>
+            <span id="mobileCartBadge" class="absolute -top-0.5 right-1 px-1.5 py-0.2 rounded-full bg-amber-500 text-stone-950 text-[10px] font-mono font-black">0</span>
+        </button>
+    </nav>
+
+    <!-- Modal para Abrir en Cualquier Dispositivo (Celular / Tablet / QR) -->
+    <div id="deviceModal" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-amber-500/40 text-xs space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-stone-200">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-2xl gold-gradient text-stone-950 flex items-center justify-center font-black text-base">
+                        <i class="fa-solid fa-mobile-screen-button"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-display font-bold text-stone-900 text-lg leading-tight">Ver en Celular, Tablet u otro PC</h3>
+                        <p class="text-[11px] text-stone-500">Conecta tus dispositivos a la misma red Wi-Fi y escanea el código QR</p>
+                    </div>
+                </div>
+                <button type="button" onclick="document.getElementById('deviceModal').classList.add('hidden')" class="text-stone-400 hover:text-stone-700">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-center">
+                <!-- QR Tienda de Clientes -->
+                <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
+                    <span class="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-extrabold text-[10px] uppercase">Sitio 1 · Clientes</span>
+                    <h4 class="font-bold text-stone-900 text-sm">Tienda Online</h4>
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=<?= urlencode($urlMovilTienda) ?>"
+                         alt="QR Tienda" class="w-36 h-36 mx-auto rounded-xl border border-stone-200 bg-white p-1.5 shadow-sm">
+                    <input type="text" readonly value="<?= htmlspecialchars($urlMovilTienda) ?>"
+                           onclick="this.select(); navigator.clipboard.writeText(this.value);"
+                           class="w-full px-2.5 py-1.5 rounded-lg border border-stone-200 bg-white font-mono text-[11px] text-center text-stone-700">
+                </div>
+
+                <!-- QR Portal Admin / Trabajador -->
+                <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
+                    <span class="px-2.5 py-0.5 rounded-full bg-stone-800 text-amber-300 font-extrabold text-[10px] uppercase">Sitio 2 · Personal</span>
+                    <h4 class="font-bold text-stone-900 text-sm">Admin & Caja POS</h4>
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=<?= urlencode($urlMovilAdmin) ?>"
+                         alt="QR Admin" class="w-36 h-36 mx-auto rounded-xl border border-stone-200 bg-white p-1.5 shadow-sm">
+                    <input type="text" readonly value="<?= htmlspecialchars($urlMovilAdmin) ?>"
+                           onclick="this.select(); navigator.clipboard.writeText(this.value);"
+                           class="w-full px-2.5 py-1.5 rounded-lg border border-stone-200 bg-white font-mono text-[11px] text-center text-stone-700">
+                </div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-amber-50 border border-amber-200/80 text-[11px] text-amber-950 leading-relaxed">
+                <strong><i class="fa-solid fa-wifi mr-1"></i> IP de red detectada:</strong> <code class="font-mono font-bold"><?= htmlspecialchars($ipLocalRed) ?></code>.
+                El diseño es <strong>100% Responsivo (Mobile-First & PWA)</strong>: se adapta automáticamente a pantallas de celulares Android, iPhone, iPad/Tablets y computadores.
+            </div>
+        </div>
+    </div>
 
     <script>
         let storeCart = [];
@@ -595,13 +922,15 @@ if (!empty($folioBuscado)) {
             }
         }
 
-        function setStoreCategory(catId) {
-            activeStoreCategory = catId;
-            document.querySelectorAll('.store-cat-btn').forEach(btn => {
-                if (parseInt(btn.dataset.catBtn) === catId) {
-                    btn.className = 'store-cat-btn px-4 py-2.5 rounded-2xl text-xs font-extrabold gold-gradient text-stone-950 shadow transition whitespace-nowrap';
+        let activeCatalogFilter = 'todos';
+
+        function setCatalogFilter(filterTag) {
+            activeCatalogFilter = filterTag;
+            document.querySelectorAll('.store-filter-btn').forEach(btn => {
+                if (btn.dataset.filterTag === filterTag) {
+                    btn.className = 'store-filter-btn px-4 py-2.5 rounded-xl font-bold bg-[#1C100B] text-amber-300 shadow-sm border border-amber-500/30 whitespace-nowrap transition flex items-center gap-2 text-[14px]';
                 } else {
-                    btn.className = 'store-cat-btn px-4 py-2.5 rounded-2xl text-xs font-bold bg-white text-stone-700 border border-stone-200/80 hover:border-amber-500 transition whitespace-nowrap';
+                    btn.className = 'store-filter-btn px-4 py-2.5 rounded-xl font-semibold bg-white text-stone-700 hover:bg-amber-50 border border-stone-200/80 whitespace-nowrap transition flex items-center gap-2 text-[14px]';
                 }
             });
             filterStoreProducts();
@@ -609,11 +938,23 @@ if (!empty($folioBuscado)) {
 
         function filterStoreProducts() {
             const q = (document.getElementById('storeSearch').value || '').toLowerCase().trim();
+            let visibleCount = 0;
             document.querySelectorAll('.store-product-card').forEach(card => {
-                const matchCat = (activeStoreCategory === 0 || parseInt(card.dataset.cat) === activeStoreCategory);
+                const tags = (card.dataset.tags || '').split(' ');
+                const matchFilter = (activeCatalogFilter === 'todos' || tags.includes(activeCatalogFilter));
                 const matchText = (!q || card.dataset.search.includes(q));
-                card.style.display = (matchCat && matchText) ? 'flex' : 'none';
+                if (matchFilter && matchText) {
+                    card.style.display = 'flex';
+                    visibleCount++;
+                } else {
+                    card.style.display = 'none';
+                }
             });
+
+            const emptyEl = document.getElementById('storeEmptyState');
+            if (emptyEl) {
+                emptyEl.classList.toggle('hidden', visibleCount > 0);
+            }
         }
 
         function sortStoreProducts() {
@@ -666,6 +1007,8 @@ if (!empty($folioBuscado)) {
             const count = storeCart.reduce((acc, it) => acc + it.cantidad, 0);
             const total = storeCart.reduce((acc, it) => acc + (it.precio * it.cantidad), 0);
 
+            const mobileBadge = document.getElementById('mobileCartBadge');
+            if (mobileBadge) mobileBadge.textContent = count;
             badge.textContent = count;
             headerTotal.textContent = '$' + total.toLocaleString('es-CO');
             countLabel.textContent = `${count} producto(s) seleccionado(s)`;

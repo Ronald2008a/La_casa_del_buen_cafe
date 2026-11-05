@@ -138,11 +138,15 @@ CREATE POLICY "Acceso total movimientos_inventario" ON public.movimientos_invent
 -- ============================================================================
 
 INSERT INTO public.categorias (nombre, descripcion, icono) VALUES
-('Café de Especialidad (Grano/Molido)', 'Bolsas de café de origen único tostado artesanalmente', 'fa-seedling'),
-('Bebidas Calientes Espresso Bar', 'Preparaciones clásicas y filtrados al momento', 'fa-mug-hot'),
-('Bebidas Frías & Cold Brew', 'Infusiones en frío, frappés y lattes helados', 'fa-glass-water'),
-('Repostería Artesanal', 'Acompañamientos recién horneados para tu café', 'fa-cookie-bite'),
-('Accesorios Barista', 'Prensas francesas, métodos V60, molinos y termos', 'fa-filter')
+('Tortas', 'Tortas artesanales recién horneadas para acompañar tu café', 'fa-cake-candles'),
+('Galletas Integral', 'Galletas integrales saludables con avena, miel y semillas', 'fa-cookie-bite'),
+('Empanadas Mixtas', 'Empanadas crujientes rellenas de combinación de carnes y queso', 'fa-utensils'),
+('Empanadas de Carne', 'Empanadas tradicionales con carne sazonada de la casa', 'fa-fire-burner'),
+('Empanadas de Pollo', 'Empanadas doradas rellenas de pollo desmechado criollo', 'fa-drumstick-bite'),
+('Platanitos Mixtos', 'Mezcla crujiente de platanitos verdes salados y maduros dulces', 'fa-bowl-food'),
+('Platanitos Maduros', 'Chips artesanales de plátano maduro naturalmente dulces', 'fa-sun'),
+('Platanitos Verdes', 'Chips crocantes de plátano verde con toque de sal marina', 'fa-leaf'),
+('Bebidas', 'Café de especialidad colombiano, bebidas calientes y frías', 'fa-mug-hot')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO public.productos (categoria_id, codigo, nombre, descripcion, origen, tueste, precio, costo, stock, stock_minimo, imagen_url, destacado) VALUES

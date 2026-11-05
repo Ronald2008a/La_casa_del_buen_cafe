@@ -4,8 +4,8 @@
  * La Casa del Buen Café
  */
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+if (session_status() === PHP_SESSION_NONE && php_sapi_name() !== 'cli') {
+    @session_start();
 }
 
 date_default_timezone_set('America/Bogota');
@@ -97,13 +97,17 @@ class SupabaseService {
             $this->pdo->exec("CREATE DATABASE IF NOT EXISTS `{$db}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
             $this->pdo->exec("USE `{$db}`");
 
-            // Verificar si ya existen todas las tablas y datos iniciales
+            // Verificar si ya existen todas las tablas y las 9 categorías actualizadas
             $stmt = $this->pdo->query("SHOW TABLES LIKE 'movimientos_inventario'");
             if ($stmt->rowCount() === 0) {
                 $this->initializeMySQLSchema();
             } else {
-                $countCats = (int)$this->pdo->query("SELECT COUNT(*) FROM `categorias`")->fetchColumn();
-                if ($countCats === 0) {
+                $checkCat = $this->pdo->query("SELECT COUNT(*) FROM `categorias` WHERE `nombre` = 'Platanitos Verdes'")->fetchColumn();
+                if ((int)$checkCat === 0) {
+                    $this->pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
+                    $this->pdo->exec("TRUNCATE TABLE `productos`");
+                    $this->pdo->exec("TRUNCATE TABLE `categorias`");
+                    $this->pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
                     $this->initializeMySQLSchema();
                 }
             }
