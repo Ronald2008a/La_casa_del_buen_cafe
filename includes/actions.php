@@ -70,8 +70,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
                 $nombreUser = $_SESSION['user']['nombre'] ?? $email;
 
                 if ($rolActual === 'cliente') {
-                    setFlash('success', '¡Hola, ' . htmlspecialchars($nombreUser) . '! Bienvenido a tu portal del Club del Buen Café.');
-                    header('Location: cliente.php');
+                    setFlash('success', '¡Hola, ' . htmlspecialchars($nombreUser) . '! Bienvenido a tu Portal Especial de Clientes.');
+                    header('Location: portal_clientes.php');
                     exit;
                 }
 
@@ -85,10 +85,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
                 $rolNombres = [
                     'admin'   => 'Administrador General',
                     'cajero'  => 'Cajero de Turno / POS',
-                    'barista' => 'Barista / Cocina'
+                    'barista' => 'Empleado / Barista'
                 ];
                 setFlash('success', 'Bienvenido(a), ' . $nombreUser . ' [' . ($rolNombres[$rolActual] ?? strtoupper($rolActual)) . ']');
-                header('Location: admin.php?tab=' . $tabDestino);
+                header('Location: portal_privado.php?tab=' . $tabDestino);
                 exit;
             } else {
                 setFlash('error', $res['error'] ?? 'Error al iniciar sesión');
@@ -126,9 +126,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
             unset($_SESSION['user']);
             setFlash('info', 'Has cerrado tu sesión de forma segura.');
             if ($rolAnterior === 'cliente') {
-                header('Location: index.php');
+                header('Location: portal_clientes.php');
             } else {
-                header('Location: login.php');
+                header('Location: portal_privado.php');
             }
             exit;
 

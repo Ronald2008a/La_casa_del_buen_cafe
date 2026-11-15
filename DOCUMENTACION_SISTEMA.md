@@ -149,35 +149,43 @@ Al enviar, el sistema genera un **Folio Único** (ej. `WEB-3421`), guarda el ped
 
 ## 5. Manual de Usuario: Portales de Acceso y Gestión por Roles
 
-El sistema cuenta con una arquitectura de **4 roles completamente independientes**, cada uno con su propio portal de login, validación de credenciales y permisos estrictos:
+El sistema cuenta con una arquitectura de separación total entre el **Portal Especial para Clientes** y el **Portal Muy Privado para Personal (Admin, Cajero y Empleado)**:
 
 ```mermaid
 flowchart TD
-    Selector["Selector de Roles (login.php)"] --> P1["Portal Admin (login_admin.php)"]
-    Selector --> P2["Portal Cajero (login_cajero.php)"]
-    Selector --> P3["Portal Barista (login_barista.php)"]
-    Selector --> P4["Portal Cliente (login_cliente.php)"]
+    Public["Tienda Pública (index.php)"] --> PClientes["⭐ Portal Especial Clientes (portal_clientes.php)"]
+    Public --> PPrivado["🔒 Portal Privado Personal (portal_privado.php)"]
 
-    P1 -->|Rol admin| Dash["Panel Admin: KPIs, Inventario CRUD, DB, POS, Comandas"]
-    P2 -->|Rol cajero| POS["Terminal POS, Cobros, Comandas, Clientes"]
-    P3 -->|Rol barista| KDS["Monitor KDS de Preparación en Cocina y Barra"]
-    P4 -->|Rol cliente| CliPortal["Portal Privado del Cliente (cliente.php)"]
+    subgraph PortalClientes ["Portal Especial de Clientes"]
+        PClientes --> VIPCard["Tarjeta VIP & Saldo de Puntos"]
+        PClientes --> LiveTrack["Rastreo de Pedidos en Vivo"]
+        PClientes --> Redeem["Canje de Premios (Café, Tortas, Grano)"]
+        PClientes --> FastOrder["Catálogo Directo de Socios"]
+    end
+
+    subgraph PortalPrivado ["Portal Muy Privado de Personal"]
+        PPrivado --> RAdmin["1. Administrador (Control Total, CRUD, KPIs, DB)"]
+        PPrivado --> RCaja["2. Cajero (Terminal POS, Facturación, Clientes)"]
+        PPrivado --> RBarista["3. Empleado / Barista (Monitor KDS Barra y Cocina)"]
+    end
 ```
 
-### 5.1. Control de Acceso y Portales de Login por Rol
-1. **Administrador (`login_admin.php`)**:
-   - **Credenciales**: `admin@casadelbuencafe.com` (Contraseña: `password`)
-   - **Módulos Permitidos**: Dashboard financiero y KPIs, Inventario CRUD completo, Terminal POS, Comandas, Clientes y Configuración de Base de Datos MySQL.
-2. **Cajero / POS (`login_cajero.php`)**:
-   - **Credenciales**: `cajero@casadelbuencafe.com` o `caja@casadelbuencafe.com` (Contraseña: `password`)
-   - **Módulos Permitidos**: Terminal POS para cobros y facturación, Comandas y Registro/Consulta de Clientes. Acceso bloqueado a Dashboard, Inventario y Base de Datos.
-3. **Barista (`login_barista.php`)**:
-   - **Credenciales**: `barista@casadelbuencafe.com` (Contraseña: `password`)
-   - **Módulos Permitidos**: Monitor KDS de Comandas de Cocina/Barra en tiempo real. Acceso restringido exclusivo a preparación y despacho de pedidos.
-4. **Cliente (`login_cliente.php` y `cliente.php`)**:
-   - **Credenciales**: `estefania@ejemplo.com` o cualquier correo registrado (Contraseña: `password`)
-   - **Módulos Permitidos**: Consulta de puntos acumulados en el Club del Café, historial de pedidos en tiempo real y datos de entrega.
-- **Seguridad Antisalteo**: Si un usuario de un rol intenta ingresar por el portal de otro rol, el sistema bloquea el acceso informando el portal correspondiente. Se eliminó el cambio rápido inseguro por URL.
+### 5.1. Portal Especial para Clientes (`portal_clientes.php`)
+- **Propósito**: Espacio exclusivo de fidelización del *Club del Buen Café*.
+- **Funcionalidades para Clientes**:
+  - **Tarjeta VIP Digital**: Muestra el ID de socio (`CBC-XXXX`), nombre y saldo de puntos acumulados (1 punto por cada $1.000 COP).
+  - **Metas de Recompensa**: Barra de progreso interactiva (100 pts: café gratis, 150 pts: repostería, 300 pts: bolsa de café 250g).
+  - **Rastreo de Pedidos en Vivo**: Estado sincronizado en tiempo real (*Recibido en cola* $\rightarrow$ *Barista preparando en barra* $\rightarrow$ *Listo para recoger o entregado*).
+  - **Catálogo Rápido de Socios**: Botón de adición directa para reordenar favoritos sin reingresar datos.
+- **Acceso 1-Clic Demo**: Estefanía Olaya (150 pts), Carlos Mendoza (85 pts), Laura Valencia (220 pts).
+
+### 5.2. Portal Muy Privado para Personal (`portal_privado.php` / `admin.php`)
+- **Propósito**: Intranet corporativa privada y de acceso restringido para colaboradores.
+- **Roles y Puestos Internos**:
+  1. **Administrador (`login_admin.php`)**: `admin@casadelbuencafe.com` (Control Total: Dashboard KPIs, Inventario CRUD con Kardex, Base de datos MySQL, POS, Comandas).
+  2. **Cajero (`login_cajero.php`)**: `cajero@casadelbuencafe.com` (Terminal POS, Facturación rápida, Cobros de barra, Consulta y registro de clientes).
+  3. **Empleado / Barista (`login_barista.php`)**: `barista@casadelbuencafe.com` (Monitor KDS de cocina y barra en tiempo real con alertas auditivas y cambio de estado en 1 toque).
+- **Aislamiento Estricto**: Los clientes no tienen acceso al portal privado; si intentan ingresar, son dirigidos a su portal especial. Tampoco se permite el cambio libre de rol sin autenticación previa.
 
 ### 5.2. Pestaña 1: Dashboard de Métricas y Analítica en Vivo
 - **KPIs Principales**:

@@ -135,8 +135,8 @@ if (!empty($_SESSION['user']) && ($_SESSION['user']['rol'] ?? '') === 'barista')
                 <a href="login_cajero.php" class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-bold hover:bg-emerald-100 transition">
                     <i class="fa-solid fa-cash-register mr-1"></i> Soy Cajero
                 </a>
-                <a href="login_cliente.php" class="px-2.5 py-1 rounded-lg bg-stone-100 text-stone-800 font-bold hover:bg-stone-200 transition">
-                    <i class="fa-solid fa-award mr-1"></i> Soy Cliente
+                <a href="portal_clientes.php" class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-bold hover:bg-amber-200 transition">
+                    <i class="fa-solid fa-award mr-1"></i> Portal Clientes
                 </a>
             </div>
             <div class="pt-2">

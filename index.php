@@ -205,17 +205,17 @@ $urlMovilAdmin  = "http://{$ipLocalRed}/La_casa_del_buen_cafe/admin.php";
                 </button>
                 <span class="text-white/20">|</span>
                 <?php if (!empty($_SESSION['user']) && ($_SESSION['user']['rol'] ?? '') === 'cliente'): ?>
-                    <a href="cliente.php" class="text-amber-300 hover:text-white font-bold transition flex items-center gap-1.5 text-[11px]">
-                        <i class="fa-solid fa-award text-amber-400"></i> Mi Cuenta Club (<?= (int)($_SESSION['user']['puntos'] ?? 0) ?> pts)
+                    <a href="portal_clientes.php" class="text-amber-300 hover:text-white font-bold transition flex items-center gap-1.5 text-[11px]">
+                        <i class="fa-solid fa-award text-amber-400"></i> Portal Clientes (<?= (int)($_SESSION['user']['puntos'] ?? 0) ?> pts)
                     </a>
                 <?php else: ?>
-                    <a href="login_cliente.php" class="text-amber-300 hover:text-white font-bold transition flex items-center gap-1 text-[11px]">
-                        <i class="fa-solid fa-award"></i> Club del Café / Login
+                    <a href="portal_clientes.php" class="text-amber-300 hover:text-white font-bold transition flex items-center gap-1 text-[11px]">
+                        <i class="fa-solid fa-award"></i> Portal Especial Clientes
                     </a>
                 <?php endif; ?>
                 <span class="text-white/20">|</span>
-                <a href="login.php" class="text-stone-400 hover:text-amber-300 transition flex items-center gap-1 text-[11px]">
-                    <i class="fa-solid fa-users-gear text-amber-400"></i> Roles Personal
+                <a href="portal_privado.php" class="text-stone-400 hover:text-amber-300 transition flex items-center gap-1 text-[11px]">
+                    <i class="fa-solid fa-lock text-amber-400"></i> Portal Privado Personal
                 </a>
             </div>
         </div>
@@ -1215,8 +1215,11 @@ $urlMovilAdmin  = "http://{$ipLocalRed}/La_casa_del_buen_cafe/admin.php";
                 <button type="button" onclick="openTermsModal()" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-amber-300 hover:text-white font-bold transition flex items-center gap-2 text-[14px]">
                     <i class="fa-solid fa-file-contract text-amber-400"></i> Términos y Condiciones
                 </button>
-                <a href="login.php" class="px-4 py-2 rounded-xl gold-gradient text-stone-950 font-extrabold transition flex items-center gap-2 shadow text-[14px]">
-                    <i class="fa-solid fa-users-gear"></i> Portales por Rol →
+                <a href="portal_clientes.php" class="px-4 py-2 rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-300 hover:bg-amber-500 hover:text-stone-950 font-extrabold transition flex items-center gap-2 shadow text-[14px]">
+                    <i class="fa-solid fa-award"></i> Portal Clientes
+                </a>
+                <a href="portal_privado.php" class="px-4 py-2 rounded-xl gold-gradient text-stone-950 font-extrabold transition flex items-center gap-2 shadow text-[14px]">
+                    <i class="fa-solid fa-lock"></i> Portal Privado Personal →
                 </a>
             </div>
         </div>

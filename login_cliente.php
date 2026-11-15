@@ -5,9 +5,9 @@
  */
 require_once __DIR__ . '/includes/actions.php';
 
-// Si ya tiene sesión activa como cliente, llevarlo directo a su portal
+// Si ya tiene sesión activa como cliente, llevarlo directo a su portal especial
 if (!empty($_SESSION['user']) && ($_SESSION['user']['rol'] ?? '') === 'cliente') {
-    header('Location: cliente.php');
+    header('Location: portal_clientes.php');
     exit;
 }
 ?>

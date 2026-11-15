@@ -196,8 +196,8 @@ if (!empty($_SESSION['user'])) {
                     </ul>
                 </div>
                 <div class="pt-6">
-                    <a href="login_cliente.php" class="w-full py-3 rounded-2xl gold-gradient text-stone-950 font-extrabold shadow flex items-center justify-center gap-2 hover:brightness-105 transition">
-                        <i class="fa-solid fa-right-to-bracket text-stone-950"></i> Entrar como Cliente
+                    <a href="portal_clientes.php" class="w-full py-3 rounded-2xl gold-gradient text-stone-950 font-extrabold shadow flex items-center justify-center gap-2 hover:brightness-105 transition">
+                        <i class="fa-solid fa-right-to-bracket text-stone-950"></i> Abrir Portal Clientes
                     </a>
                 </div>
             </div>
