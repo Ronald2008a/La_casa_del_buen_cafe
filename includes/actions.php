@@ -7,6 +7,7 @@
  */
 
 require_once __DIR__ . '/../config/supabase.php';
+require_once __DIR__ . '/job_queue.php';
 
 $db = new SupabaseService();
 $flash = $_SESSION['flash'] ?? null;
@@ -25,7 +26,7 @@ function redirectToPortal(string $tab = 'dashboard', string $portal = 'admin.php
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
     $redirectTab = $_POST['redirect_tab'] ?? 'dashboard';
     $sourcePortal = $_POST['source_portal'] ?? 'admin.php';
@@ -56,29 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
             redirectToPortal('configuracion', 'admin.php');
 
-        // 1. CONFIGURACIÓN DE SUPABASE
-        case 'save_supabase_config':
-            $url = trim($_POST['supabase_url'] ?? '');
-            $key = trim($_POST['supabase_key'] ?? '');
-            if (empty($url) || empty($key)) {
-                setFlash('error', 'Por favor ingresa tanto el Project URL como el API Key de Supabase.');
-            } else {
-                $db->saveCredentials($url, $key);
-                $test = $db->testConnection();
-                if ($test['ok']) {
-                    setFlash('success', '¡Conectado exitosamente a Supabase PostgreSQL! (' . $test['message'] . ')');
-                } else {
-                    setFlash('warning', 'Credenciales guardadas. Nota: ' . $test['message']);
-                }
-            }
-            redirectToPortal('configuracion', 'admin.php');
-
-        case 'disconnect_supabase':
-            $db->disconnect();
-            setFlash('info', 'Se desconectó Supabase. Trabajando con XAMPP MySQL.');
-            redirectToPortal('configuracion', 'admin.php');
-
-        // 2. AUTENTICACIÓN ADMIN / TRABAJADOR
+        // 1. AUTENTICACIÓN ADMIN / TRABAJADOR
         case 'login':
             $email = trim($_POST['email'] ?? '');
             $password = $_POST['password'] ?? '';
@@ -114,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
 
         case 'logout':
-            unset($_SESSION['user'], $_SESSION['supabase_access_token']);
+            unset($_SESSION['user']);
             setFlash('info', 'Has cerrado sesión en el portal interno.');
             header('Location: admin.php');
             exit;
@@ -244,6 +223,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         }
                     }
                 }
+
+                // Enviar tareas secundarias y notificaciones a la cola de trabajos asíncrona
+                JobQueue::push('notify_order', [
+                    'folio' => $folio,
+                    'cliente' => $clienteNombre,
+                    'email' => $clienteEmail,
+                    'total' => $total,
+                    'items_count' => count($items)
+                ]);
+                JobQueue::push('refresh_sales_cache', [
+                    'pedido_id' => $pedidoId,
+                    'total' => $total
+                ]);
+                JobQueue::processPending(2);
 
                 $_SESSION['last_receipt'] = [
                     'folio' => $folio,

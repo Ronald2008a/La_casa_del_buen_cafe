@@ -31,7 +31,7 @@ if (!$esAdmin && in_array($tab, ['dashboard', 'inventario', 'configuracion'], tr
     $tab = 'pos';
 }
 
-// Consultas a XAMPP MySQL / Supabase
+// Consultas a XAMPP MySQL
 $categorias     = $db->select('categorias', ['select' => '*', 'order' => 'id.asc']);
 $productos      = $db->select('productos', ['select' => '*', 'order' => 'id.asc']);
 $clientes       = $db->select('clientes', ['select' => '*', 'order' => 'id.asc']);
@@ -80,7 +80,7 @@ if ($esAdmin) {
 }
 $navItems['clientes']   = ['label' => 'Clientes',       'icon' => 'fa-users',          'sub' => 'Club & Puntos'];
 if ($esAdmin) {
-    $navItems['configuracion'] = ['label' => 'Base de Datos', 'icon' => 'fa-database',    'sub' => 'MySQL & Supabase'];
+    $navItems['configuracion'] = ['label' => 'Base de Datos', 'icon' => 'fa-database',    'sub' => 'XAMPP MySQL / phpMyAdmin'];
 }
 ?>
 <!DOCTYPE html>

@@ -10,7 +10,7 @@ header('Cache-Control: no-cache, no-store, must-revalidate');
 require_once __DIR__ . '/config/supabase.php';
 
 $db = new SupabaseService();
-$pedidos = $db->select('pedidos', ['select' => '*', 'order' => 'id.desc']);
+$pedidos = $db->select('pedidos', ['select' => 'id, folio, cliente_nombre, total, tipo, estado, created_at', 'order' => 'id.desc']);
 $productos = $db->select('productos', ['select' => 'id,stock,stock_minimo', 'order' => 'id.asc']);
 
 $totalVentas = 0;
@@ -51,6 +51,7 @@ echo json_encode([
     'stock_bajo_count'   => $stockBajoCount,
     'ultimo_pedido'      => $ultimoPedido,
     'mysql_active'       => $db->isMySQLActive(),
+    'active_engine'      => $db->getActiveEngineName(),
     'ip_red'             => $ipRed,
     'timestamp'          => time()
 ], JSON_UNESCAPED_UNICODE);

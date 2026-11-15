@@ -345,9 +345,9 @@ $chartCatValues = array_values($stockPorCategoria);
                        class="w-full py-2.5 px-3 rounded-xl gold-gradient text-stone-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow">
                         <i class="fa-solid fa-table"></i> Inspeccionar en phpMyAdmin
                     </a>
-                    <a href="index.php?tab=configuracion"
+                    <a href="admin.php?tab=configuracion"
                        class="w-full py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs flex items-center justify-center gap-2 transition">
-                        <i class="fa-solid fa-sliders"></i> Configurar MySQL / Supabase
+                        <i class="fa-solid fa-sliders"></i> Configurar Base de Datos MySQL
                     </a>
                 </div>
             </div>

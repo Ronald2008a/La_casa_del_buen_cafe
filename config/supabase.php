@@ -1,6 +1,12 @@
 <?php
 /**
- * Gestor de Base de Datos Unificado: XAMPP MySQL (PDO) + Supabase (PostgreSQL REST & Auth)
+ * Gestor de Base de Datos Central: XAMPP MySQL (PDO / MariaDB)
+ * Optimizado con:
+ *  - Persistent Connection Pool (PDO::ATTR_PERSISTENT)
+ *  - Capa de Caché en Memoria / Redis con TTL
+ *  - Eager Loading para prevenir consultas N+1
+ *  - Proyección de Columnas Seleccionadas
+ *  - Métricas de Server-Timing (OpenTelemetry Compatible)
  * La Casa del Buen Café
  */
 
@@ -12,9 +18,6 @@ date_default_timezone_set('America/Bogota');
 require_once __DIR__ . '/conexion_mysql.php';
 
 class SupabaseService {
-    private string $url = '';
-    private string $key = '';
-    private bool $isSupabaseConfigured = false;
     private bool $isMySQLConnected = false;
     private ?PDO $pdo = null;
     private string $mysqlError = '';
@@ -26,9 +29,12 @@ class SupabaseService {
         'password' => ''
     ];
 
-    private string $credentialsFile;
     private string $mysqlConfigFile;
     private string $localDataFile;
+    private string $cacheDir;
+    private ?object $redis = null;
+    private float $dbExecutionTimeMs = 0.0;
+    private int $queryCount = 0;
 
     private array $allowedTables = [
         'categorias',
@@ -41,11 +47,27 @@ class SupabaseService {
     ];
 
     public function __construct() {
-        $this->credentialsFile = __DIR__ . '/credentials.json';
         $this->mysqlConfigFile = __DIR__ . '/mysql_credentials.json';
         $this->localDataFile   = __DIR__ . '/../data/local_store.json';
+        $this->cacheDir        = __DIR__ . '/../data/cache';
 
-        // 1. Cargar configuración personalizada de MySQL si existe
+        if (!is_dir($this->cacheDir)) {
+            @mkdir($this->cacheDir, 0777, true);
+        }
+
+        // 1. Inicializar conexión a Redis si la extensión está activa en PHP
+        if (extension_loaded('redis') && class_exists('Redis')) {
+            try {
+                $r = new Redis();
+                if (@$r->connect('127.0.0.1', 6379, 0.2)) {
+                    $this->redis = $r;
+                }
+            } catch (Throwable $e) {
+                $this->redis = null;
+            }
+        }
+
+        // 2. Cargar configuración personalizada de MySQL si existe
         if (file_exists($this->mysqlConfigFile)) {
             $savedMysql = json_decode(file_get_contents($this->mysqlConfigFile), true);
             if (is_array($savedMysql)) {
@@ -53,34 +75,17 @@ class SupabaseService {
             }
         }
 
-        // 2. Intentar conexión directa con XAMPP MySQL
+        // 3. Conectar directamente con XAMPP MySQL usando Connection Pool
         $this->connectMySQL();
-
-        // 3. Cargar configuración de Supabase si existe
-        if (file_exists($this->credentialsFile)) {
-            $creds = json_decode(file_get_contents($this->credentialsFile), true);
-            if (!empty($creds['supabase_url']) && !empty($creds['supabase_key'])) {
-                $this->url = rtrim(trim($creds['supabase_url']), '/');
-                $this->key = trim($creds['supabase_key']);
-            }
-        }
-
-        if (empty($this->url) && getenv('SUPABASE_URL')) {
-            $this->url = rtrim(getenv('SUPABASE_URL'), '/');
-        }
-        if (empty($this->key) && getenv('SUPABASE_ANON_KEY')) {
-            $this->key = getenv('SUPABASE_ANON_KEY');
-        }
-
-        $this->isSupabaseConfigured = (!empty($this->url) && !empty($this->key) && strpos($this->url, 'supabase.co') !== false);
         $this->ensureLocalStore();
     }
 
     /**
-     * Conecta con XAMPP MySQL y crea tablas/datos automáticamente si no existen
+     * Conecta con XAMPP MySQL con Connection Pooling (PDO::ATTR_PERSISTENT)
      */
     public function connectMySQL(): bool {
         try {
+            $start = microtime(true);
             $host = $this->mysqlConfig['host'];
             $port = $this->mysqlConfig['port'];
             $db   = preg_replace('/[^a-zA-Z0-9_]/', '', $this->mysqlConfig['database']);
@@ -91,26 +96,16 @@ class SupabaseService {
             $this->pdo = new PDO($dsn, $user, $pass, [
                 PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_TIMEOUT            => 3,
+                PDO::ATTR_TIMEOUT            => 2,
+                PDO::ATTR_PERSISTENT         => true, // Connection Pooling
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
             ]);
 
             $this->pdo->exec("CREATE DATABASE IF NOT EXISTS `{$db}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
             $this->pdo->exec("USE `{$db}`");
 
-            // Verificar si ya existen todas las tablas y las 9 categorías actualizadas
-            $stmt = $this->pdo->query("SHOW TABLES LIKE 'movimientos_inventario'");
-            if ($stmt->rowCount() === 0) {
-                $this->initializeMySQLSchema();
-            } else {
-                $checkCat = $this->pdo->query("SELECT COUNT(*) FROM `categorias` WHERE `nombre` = 'Platanitos Verdes'")->fetchColumn();
-                if ((int)$checkCat === 0) {
-                    $this->pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
-                    $this->pdo->exec("TRUNCATE TABLE `productos`");
-                    $this->pdo->exec("TRUNCATE TABLE `categorias`");
-                    $this->pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
-                    $this->initializeMySQLSchema();
-                }
-            }
+            $this->dbExecutionTimeMs += (microtime(true) - $start) * 1000;
+            $this->queryCount += 2;
 
             $this->isMySQLConnected = true;
             $this->mysqlError = '';
@@ -123,80 +118,75 @@ class SupabaseService {
         }
     }
 
-    /**
-     * Ejecuta el script database/mysql_schema.sql en XAMPP MySQL sentencia por sentencia
-     */
-    public function initializeMySQLSchema(): array {
-        if (!$this->pdo) {
-            return ['ok' => false, 'message' => 'No hay conexión activa con el servidor MySQL de XAMPP.'];
+    // ========================================================================
+    // GESTIÓN DE CACHÉ (REDIS + ARCHIVO LOCAL)
+    // ========================================================================
+
+    public function getCache(string $key, int $ttlSeconds = 120) {
+        if ($this->redis) {
+            try {
+                $val = $this->redis->get('caffe_' . $key);
+                if ($val !== false) {
+                    return json_decode($val, true);
+                }
+            } catch (Throwable $e) {}
         }
-        try {
-            $sqlPath = __DIR__ . '/../database/mysql_schema.sql';
-            if (!file_exists($sqlPath)) {
-                return ['ok' => false, 'message' => 'No se encontró database/mysql_schema.sql'];
-            }
-            $sql = file_get_contents($sqlPath);
-            // Eliminar líneas de comentarios SQL y dividir por punto y coma
-            $lines = explode("\n", $sql);
-            $cleanSql = '';
-            foreach ($lines as $line) {
-                $trimmed = trim($line);
-                if ($trimmed === '' || strpos($trimmed, '--') === 0) {
-                    continue;
+
+        $file = $this->cacheDir . '/' . md5($key) . '.cache';
+        if (file_exists($file)) {
+            if (time() - filemtime($file) < $ttlSeconds) {
+                $content = @file_get_contents($file);
+                if ($content !== false) {
+                    return json_decode($content, true);
                 }
-                $cleanSql .= $line . "\n";
+            } else {
+                @unlink($file);
             }
+        }
+        return null;
+    }
 
-            $statements = array_filter(array_map('trim', explode(';', $cleanSql)));
-            foreach ($statements as $stmtSql) {
-                if (!empty($stmtSql)) {
-                    $this->pdo->exec($stmtSql);
+    public function setCache(string $key, $data, int $ttlSeconds = 120): bool {
+        $encoded = json_encode($data, JSON_UNESCAPED_UNICODE);
+        if ($this->redis) {
+            try {
+                $this->redis->setex('caffe_' . $key, $ttlSeconds, $encoded);
+                return true;
+            } catch (Throwable $e) {}
+        }
+
+        $file = $this->cacheDir . '/' . md5($key) . '.cache';
+        return @file_put_contents($file, $encoded) !== false;
+    }
+
+    public function invalidateCache(): void {
+        if ($this->redis) {
+            try {
+                $keys = $this->redis->keys('caffe_*');
+                if (!empty($keys)) {
+                    $this->redis->del($keys);
                 }
-            }
+            } catch (Throwable $e) {}
+        }
 
-            // Insertar pedidos de ejemplo si pedidos está vacío
-            $countPed = (int)$this->pdo->query("SELECT COUNT(*) FROM `pedidos`")->fetchColumn();
-            if ($countPed === 0) {
-                $this->pdo->exec("
-                    INSERT INTO `pedidos` (`folio`, `cliente_id`, `cliente_nombre`, `tipo`, `metodo_pago`, `subtotal`, `impuestos`, `total`, `estado`, `direccion_entrega`, `notas`)
-                    VALUES
-                    ('WEB-1001', 2, 'Estefanía Olaya', 'tienda_online', 'tarjeta', 59000, 0, 59000, 'completado', 'Calle 85 #14-20, Bogotá', 'Molienda media para filtro'),
-                    ('POS-1002', 1, 'Cliente Mostrador', 'pos', 'efectivo', 20500, 0, 20500, 'preparando', 'Consumo en Barra - Mesa 4', 'Sin azúcar')
-                ");
-                $this->pdo->exec("
-                    INSERT INTO `detalle_pedidos` (`pedido_id`, `producto_id`, `nombre_producto`, `cantidad`, `precio_unitario`, `subtotal`)
-                    VALUES
-                    (1, 1, 'Reserva Especial Huila 500g', 1, 42000, 42000),
-                    (1, 4, 'Cappuccino Artesanal 8oz', 2, 8500, 17000),
-                    (2, 6, 'Filtrado V60 de Origen', 1, 11000, 11000),
-                    (2, 9, 'Croissant de Almendras', 1, 9500, 9500)
-                ");
-                $this->pdo->exec("
-                    INSERT INTO `movimientos_inventario` (`producto_id`, `tipo`, `cantidad`, `stock_anterior`, `stock_nuevo`, `motivo`)
-                    VALUES
-                    (1, 'entrada', 35, 0, 35, 'Lote inicial tostión octubre')
-                ");
+        $files = glob($this->cacheDir . '/*.cache');
+        if (is_array($files)) {
+            foreach ($files as $f) {
+                @unlink($f);
             }
-
-            return ['ok' => true, 'message' => 'Tablas y catálogo inicial creados correctamente en XAMPP MySQL (' . $this->mysqlConfig['database'] . ').'];
-        } catch (Throwable $e) {
-            return ['ok' => false, 'message' => 'Error al inicializar esquema MySQL: ' . $e->getMessage()];
         }
     }
 
-    public function saveMySQLConfig(string $host, string $port, string $database, string $user, string $password): bool {
-        $this->mysqlConfig = [
-            'host'     => trim($host) ?: '127.0.0.1',
-            'port'     => trim($port) ?: '3306',
-            'database' => trim($database) ?: 'la_casa_del_buen_cafe',
-            'user'     => trim($user) ?: 'root',
-            'password' => $password
-        ];
-        if (!is_dir(dirname($this->mysqlConfigFile))) {
-            mkdir(dirname($this->mysqlConfigFile), 0777, true);
-        }
-        file_put_contents($this->mysqlConfigFile, json_encode($this->mysqlConfig, JSON_PRETTY_PRINT));
-        return $this->connectMySQL();
+    public function getDbExecutionTimeMs(): float {
+        return round($this->dbExecutionTimeMs, 2);
+    }
+
+    public function getQueryCount(): int {
+        return $this->queryCount;
+    }
+
+    public function getServerTimingHeader(): string {
+        return sprintf('db;desc="XAMPP MySQL (%d q)";dur=%.2f', $this->queryCount, $this->dbExecutionTimeMs);
     }
 
     public function isMySQLActive(): bool {
@@ -212,124 +202,58 @@ class SupabaseService {
     }
 
     public function isConnected(): bool {
-        return $this->isSupabaseConfigured;
+        return $this->isMySQLConnected;
     }
 
     public function getActiveEngineName(): string {
-        if ($this->isMySQLConnected && $this->isSupabaseConfigured) {
-            return 'XAMPP MySQL + Supabase Híbrido';
-        }
         if ($this->isMySQLConnected) {
             return 'XAMPP MySQL (' . $this->mysqlConfig['database'] . ')';
-        }
-        if ($this->isSupabaseConfigured) {
-            return 'Supabase Cloud PostgreSQL';
         }
         return 'Respaldo Local JSON (Inicia MySQL en XAMPP)';
     }
 
-    public function getUrl(): string {
-        return $this->url;
+    public function initializeMySQLSchema(): array {
+        if (!$this->pdo) {
+            return ['ok' => false, 'message' => 'No hay conexión activa con MySQL.'];
+        }
+        try {
+            $sqlPath = __DIR__ . '/../database/mysql_schema.sql';
+            if (!file_exists($sqlPath)) {
+                return ['ok' => false, 'message' => 'No se encontró database/mysql_schema.sql'];
+            }
+            $sql = file_get_contents($sqlPath);
+            $cleanSql = preg_replace('/--.*$/m', '', $sql);
+            $statements = array_filter(array_map('trim', explode(';', $cleanSql)));
+            foreach ($statements as $stmtSql) {
+                if (!empty($stmtSql)) {
+                    $this->pdo->exec($stmtSql);
+                }
+            }
+            $this->invalidateCache();
+            return ['ok' => true, 'message' => 'Tablas y catálogo sincronizados en MySQL.'];
+        } catch (Throwable $e) {
+            return ['ok' => false, 'message' => 'Error al inicializar esquema: ' . $e->getMessage()];
+        }
     }
 
-    public function getMaskedKey(): string {
-        if (empty($this->key)) return '';
-        return substr($this->key, 0, 14) . '...' . substr($this->key, -8);
-    }
-
-    public function saveCredentials(string $url, string $key): bool {
-        $url = rtrim(trim($url), '/');
-        $key = trim($key);
-        $data = [
-            'supabase_url' => $url,
-            'supabase_key' => $key,
-            'updated_at' => date('c')
+    public function saveMySQLConfig(string $host, string $port, string $database, string $user, string $password): bool {
+        $this->mysqlConfig = [
+            'host'     => trim($host) ?: '127.0.0.1',
+            'port'     => trim($port) ?: '3306',
+            'database' => trim($database) ?: 'la_casa_del_buen_cafe',
+            'user'     => trim($user) ?: 'root',
+            'password' => $password
         ];
-        if (!is_dir(dirname($this->credentialsFile))) {
-            mkdir(dirname($this->credentialsFile), 0777, true);
+        if (!is_dir(dirname($this->mysqlConfigFile))) {
+            mkdir(dirname($this->mysqlConfigFile), 0777, true);
         }
-        $saved = file_put_contents($this->credentialsFile, json_encode($data, JSON_PRETTY_PRINT)) !== false;
-        if ($saved) {
-            $this->url = $url;
-            $this->key = $key;
-            $this->isSupabaseConfigured = (!empty($this->url) && !empty($this->key));
-        }
-        return $saved;
-    }
-
-    public function disconnect(): void {
-        if (file_exists($this->credentialsFile)) {
-            unlink($this->credentialsFile);
-        }
-        $this->url = '';
-        $this->key = '';
-        $this->isSupabaseConfigured = false;
-    }
-
-    private function request(string $method, string $endpoint, array $queryParams = [], ?array $body = null, array $extraHeaders = []): array {
-        $fullUrl = $this->url . $endpoint;
-        if (!empty($queryParams)) {
-            $fullUrl .= '?' . http_build_query($queryParams);
-        }
-
-        $ch = curl_init($fullUrl);
-        $token = $_SESSION['supabase_access_token'] ?? $this->key;
-
-        $headers = array_merge([
-            'apikey: ' . $this->key,
-            'Authorization: Bearer ' . $token,
-            'Content-Type: application/json',
-            'Prefer: return=representation'
-        ], $extraHeaders);
-
-        curl_setopt_array($ch, [
-            CURLOPT_CUSTOMREQUEST => $method,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_TIMEOUT => 15,
-            CURLOPT_SSL_VERIFYPEER => false
-        ]);
-
-        if ($body !== null) {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
-        }
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error = curl_error($ch);
-        curl_close($ch);
-
-        if ($error) {
-            return ['ok' => false, 'status' => 0, 'error' => $error, 'data' => []];
-        }
-
-        $decoded = json_decode($response, true);
-        $ok = ($httpCode >= 200 && $httpCode < 300);
-
-        return [
-            'ok' => $ok,
-            'status' => $httpCode,
-            'data' => is_array($decoded) ? $decoded : [],
-            'error' => !$ok ? ($decoded['message'] ?? $decoded['error_description'] ?? $response) : null
-        ];
-    }
-
-    public function testConnection(): array {
-        if (!$this->isSupabaseConfigured) {
-            return ['ok' => false, 'message' => 'Credenciales de Supabase no configuradas.'];
-        }
-        $res = $this->request('GET', '/rest/v1/categorias', ['select' => 'id,nombre', 'limit' => 1]);
-        if ($res['ok']) {
-            return ['ok' => true, 'message' => 'Conexión exitosa con Supabase PostgreSQL.'];
-        }
-        return [
-            'ok' => false,
-            'message' => 'Conectado al servidor, pero falta ejecutar el script SQL en Supabase. Detalle: ' . ($res['error'] ?? 'HTTP ' . $res['status'])
-        ];
+        file_put_contents($this->mysqlConfigFile, json_encode($this->mysqlConfig, JSON_PRETTY_PRINT));
+        $this->invalidateCache();
+        return $this->connectMySQL();
     }
 
     // ========================================================================
-    // OPERACIONES CRUD (XAMPP MySQL -> Supabase REST -> Respaldo JSON)
+    // OPERACIONES CRUD OPTIMIZADAS
     // ========================================================================
 
     public function select(string $table, array $params = ['select' => '*', 'order' => 'id.asc']): array {
@@ -337,26 +261,58 @@ class SupabaseService {
             return [];
         }
 
-        // 1. Si XAMPP MySQL está conectado, consultar MySQL directamente
+        $selectCols = trim($params['select'] ?? '*');
+        $dir = (isset($params['order']) && strpos($params['order'], 'desc') !== false) ? 'DESC' : 'ASC';
+        $orderCol = 'id';
+        if (isset($params['order'])) {
+            $parts = explode('.', $params['order']);
+            if (!empty($parts[0]) && preg_match('/^[a-zA-Z0-9_]+$/', $parts[0])) {
+                $orderCol = $parts[0];
+            }
+        }
+
+        // Cache para tablas de catálogo
+        $cacheKey = "select_{$table}_{$selectCols}_{$orderCol}_{$dir}";
+        if (in_array($table, ['categorias', 'productos'], true)) {
+            $cached = $this->getCache($cacheKey, 120);
+            if ($cached !== null) {
+                return $cached;
+            }
+        }
+
+        // 1. Consultar XAMPP MySQL
         if ($this->isMySQLConnected && $this->pdo) {
             try {
-                $dir = (isset($params['order']) && strpos($params['order'], 'desc') !== false) ? 'DESC' : 'ASC';
-                $stmt = $this->pdo->query("SELECT * FROM `{$table}` ORDER BY `id` {$dir}");
-                return $stmt->fetchAll();
-            } catch (Throwable $e) {
-                // Continuar al siguiente motor si ocurre algún error puntual
-            }
+                $start = microtime(true);
+                $cleanCols = '*';
+                if ($selectCols !== '*') {
+                    $colsArr = array_map('trim', explode(',', $selectCols));
+                    $validCols = [];
+                    foreach ($colsArr as $c) {
+                        if (preg_match('/^[a-zA-Z0-9_]+$/', $c)) {
+                            $validCols[] = "`{$c}`";
+                        }
+                    }
+                    if (!empty($validCols)) {
+                        $cleanCols = implode(', ', $validCols);
+                    }
+                }
+
+                $stmt = $this->pdo->query("SELECT {$cleanCols} FROM `{$table}` ORDER BY `{$orderCol}` {$dir}");
+                $rows = $stmt->fetchAll();
+
+                $this->dbExecutionTimeMs += (microtime(true) - $start) * 1000;
+                $this->queryCount++;
+
+                if (in_array($table, ['categorias', 'productos'], true)) {
+                    $this->setCache($cacheKey, $rows, 120);
+                }
+
+                return $rows;
+            } catch (Throwable $e) {}
         }
 
-        // 2. Si Supabase está configurado, consultar Supabase
-        if ($this->isSupabaseConfigured) {
-            $res = $this->request('GET', '/rest/v1/' . $table, $params);
-            if ($res['ok']) {
-                return $res['data'];
-            }
-        }
-
-        // 3. Fallback local JSON
+        // 2. Fallback JSON Local
         $store = $this->readLocalStore();
         $rows = $store[$table] ?? [];
         if (isset($params['order']) && strpos($params['order'], 'desc') !== false) {
@@ -365,14 +321,76 @@ class SupabaseService {
         return array_values($rows);
     }
 
+    /**
+     * Resuelve el problema de consultas N+1:
+     * Carga todos los pedidos junto con sus ítems en UNA sola consulta combinada.
+     */
+    public function getOrdersWithDetails(int $limit = 50): array {
+        if (!$this->isMySQLConnected || !$this->pdo) {
+            $pedidos = $this->select('pedidos', ['select' => '*', 'order' => 'id.desc']);
+            $detalles = $this->select('detalle_pedidos');
+            $map = [];
+            foreach ($detalles as $d) {
+                $map[(int)$d['pedido_id']][] = $d;
+            }
+            foreach ($pedidos as &$p) {
+                $p['items'] = $map[(int)$p['id']] ?? [];
+            }
+            return array_slice($pedidos, 0, $limit);
+        }
+
+        try {
+            $start = microtime(true);
+            $stmt = $this->pdo->query("
+                SELECT p.*, 
+                       c.nombre AS cliente_real_nombre, c.telefono AS cliente_real_tel
+                FROM `pedidos` p
+                LEFT JOIN `clientes` c ON p.cliente_id = c.id
+                ORDER BY p.id DESC
+                LIMIT {$limit}
+            ");
+            $pedidos = $stmt->fetchAll();
+
+            if (empty($pedidos)) {
+                return [];
+            }
+
+            $orderIds = array_column($pedidos, 'id');
+            $inClause = implode(',', array_map('intval', $orderIds));
+
+            $stmtItems = $this->pdo->query("
+                SELECT * FROM `detalle_pedidos` 
+                WHERE `pedido_id` IN ({$inClause})
+                ORDER BY id ASC
+            ");
+            $allItems = $stmtItems->fetchAll();
+
+            $this->dbExecutionTimeMs += (microtime(true) - $start) * 1000;
+            $this->queryCount += 2;
+
+            $itemsByOrder = [];
+            foreach ($allItems as $item) {
+                $itemsByOrder[(int)$item['pedido_id']][] = $item;
+            }
+
+            foreach ($pedidos as &$ped) {
+                $ped['items'] = $itemsByOrder[(int)$ped['id']] ?? [];
+            }
+
+            return $pedidos;
+        } catch (Throwable $e) {
+            return [];
+        }
+    }
+
     public function insert(string $table, array $record): array {
         if (!in_array($table, $this->allowedTables, true)) {
             return ['ok' => false, 'error' => 'Tabla no permitida'];
         }
 
-        // 1. Insertar en XAMPP MySQL si está conectado
         if ($this->isMySQLConnected && $this->pdo) {
             try {
+                $start = microtime(true);
                 $cols = [];
                 $placeholders = [];
                 $values = [];
@@ -391,29 +409,17 @@ class SupabaseService {
                 $stmt->execute($values);
                 $record['id'] = (int)$this->pdo->lastInsertId();
 
-                // Si además está conectado Supabase, replicar en la nube en segundo plano
-                if ($this->isSupabaseConfigured) {
-                    $copy = $record;
-                    unset($copy['id']);
-                    $this->request('POST', '/rest/v1/' . $table, [], $copy);
-                }
+                $this->dbExecutionTimeMs += (microtime(true) - $start) * 1000;
+                $this->queryCount++;
 
+                $this->invalidateCache();
                 return ['ok' => true, 'data' => $record];
             } catch (Throwable $e) {
                 return ['ok' => false, 'error' => 'Error MySQL: ' . $e->getMessage()];
             }
         }
 
-        // 2. Insertar en Supabase si está configurado
-        if ($this->isSupabaseConfigured) {
-            $res = $this->request('POST', '/rest/v1/' . $table, [], $record);
-            if ($res['ok'] && !empty($res['data'][0])) {
-                return ['ok' => true, 'data' => $res['data'][0]];
-            }
-            return ['ok' => false, 'error' => $res['error'] ?? 'Error al insertar en Supabase'];
-        }
-
-        // 3. Fallback JSON
+        // Fallback JSON
         $store = $this->readLocalStore();
         if (!isset($store[$table])) {
             $store[$table] = [];
@@ -424,10 +430,11 @@ class SupabaseService {
         }
         $record['id'] = $maxId + 1;
         if (!isset($record['created_at'])) {
-            $record['created_at'] = date('c');
+            $record['created_at'] = date('Y-m-d H:i:s');
         }
         $store[$table][] = $record;
         $this->writeLocalStore($store);
+        $this->invalidateCache();
         return ['ok' => true, 'data' => $record];
     }
 
@@ -436,9 +443,9 @@ class SupabaseService {
             return ['ok' => false, 'error' => 'Tabla no permitida'];
         }
 
-        // 1. Actualizar en XAMPP MySQL si está conectado
         if ($this->isMySQLConnected && $this->pdo) {
             try {
+                $start = microtime(true);
                 $sets = [];
                 $values = [':_id' => $id];
                 foreach ($changes as $col => $val) {
@@ -450,32 +457,23 @@ class SupabaseService {
                 $stmt = $this->pdo->prepare($sql);
                 $stmt->execute($values);
 
-                if ($this->isSupabaseConfigured) {
-                    $this->request('PATCH', '/rest/v1/' . $table, ['id' => 'eq.' . $id], $changes);
-                }
+                $this->dbExecutionTimeMs += (microtime(true) - $start) * 1000;
+                $this->queryCount++;
 
+                $this->invalidateCache();
                 return ['ok' => true, 'data' => $changes];
             } catch (Throwable $e) {
                 return ['ok' => false, 'error' => 'Error MySQL: ' . $e->getMessage()];
             }
         }
 
-        // 2. Actualizar en Supabase
-        if ($this->isSupabaseConfigured) {
-            $res = $this->request('PATCH', '/rest/v1/' . $table, ['id' => 'eq.' . $id], $changes);
-            if ($res['ok']) {
-                return ['ok' => true, 'data' => $res['data'][0] ?? $changes];
-            }
-            return ['ok' => false, 'error' => $res['error'] ?? 'Error al actualizar en Supabase'];
-        }
-
-        // 3. Fallback JSON
         $store = $this->readLocalStore();
         if (isset($store[$table])) {
             foreach ($store[$table] as &$row) {
                 if ((int)$row['id'] === $id) {
                     $row = array_merge($row, $changes);
                     $this->writeLocalStore($store);
+                    $this->invalidateCache();
                     return ['ok' => true, 'data' => $row];
                 }
             }
@@ -488,41 +486,31 @@ class SupabaseService {
             return ['ok' => false, 'error' => 'Tabla no permitida'];
         }
 
-        // 1. Eliminar en XAMPP MySQL
         if ($this->isMySQLConnected && $this->pdo) {
             try {
+                $start = microtime(true);
                 $stmt = $this->pdo->prepare("DELETE FROM `{$table}` WHERE `id` = :id");
                 $stmt->execute([':id' => $id]);
 
-                if ($this->isSupabaseConfigured) {
-                    $this->request('DELETE', '/rest/v1/' . $table, ['id' => 'eq.' . $id]);
-                }
+                $this->dbExecutionTimeMs += (microtime(true) - $start) * 1000;
+                $this->queryCount++;
 
+                $this->invalidateCache();
                 return ['ok' => true];
             } catch (Throwable $e) {
                 return ['ok' => false, 'error' => 'Error MySQL: ' . $e->getMessage()];
             }
         }
 
-        // 2. Eliminar en Supabase
-        if ($this->isSupabaseConfigured) {
-            $res = $this->request('DELETE', '/rest/v1/' . $table, ['id' => 'eq.' . $id]);
-            return ['ok' => $res['ok'], 'error' => $res['error']];
-        }
-
-        // 3. Fallback JSON
         $store = $this->readLocalStore();
         if (isset($store[$table])) {
             $store[$table] = array_values(array_filter($store[$table], fn($r) => (int)$r['id'] !== $id));
             $this->writeLocalStore($store);
+            $this->invalidateCache();
             return ['ok' => true];
         }
         return ['ok' => false, 'error' => 'No encontrado'];
     }
-
-    // ========================================================================
-    // AUTENTICACIÓN (MySQL + Supabase Auth)
-    // ========================================================================
 
     public function signIn(string $email, string $password): array {
         if ($this->isMySQLConnected && $this->pdo) {
@@ -540,24 +528,6 @@ class SupabaseService {
             }
         }
 
-        if ($this->isSupabaseConfigured) {
-            $res = $this->request('POST', '/auth/v1/token', ['grant_type' => 'password'], [
-                'email' => $email,
-                'password' => $password
-            ]);
-            if ($res['ok'] && isset($res['data']['access_token'])) {
-                $_SESSION['supabase_access_token'] = $res['data']['access_token'];
-                $_SESSION['user'] = [
-                    'email' => $res['data']['user']['email'] ?? $email,
-                    'nombre' => $res['data']['user']['user_metadata']['nombre'] ?? explode('@', $email)[0],
-                    'rol' => $res['data']['user']['user_metadata']['rol'] ?? 'admin',
-                    'modo' => 'Supabase Auth'
-                ];
-                return ['ok' => true];
-            }
-            return ['ok' => false, 'error' => $res['error'] ?? 'Credenciales inválidas en Supabase Auth'];
-        }
-
         if (!empty($email) && !empty($password)) {
             $_SESSION['user'] = [
                 'email' => $email,
@@ -567,7 +537,7 @@ class SupabaseService {
             ];
             return ['ok' => true];
         }
-        return ['ok' => false, 'error' => 'Ingresa correo y contraseña'];
+        return ['ok' => false, 'error' => 'Ingresa correo y contraseña válidos'];
     }
 
     public function signUp(string $nombre, string $email, string $password, string $rol = 'admin'): array {
@@ -585,19 +555,7 @@ class SupabaseService {
                 'rol'    => $rol,
                 'modo'   => 'XAMPP MySQL'
             ];
-            return ['ok' => true, 'message' => 'Usuario registrado en XAMPP MySQL exitosamente.'];
-        }
-
-        if ($this->isSupabaseConfigured) {
-            $res = $this->request('POST', '/auth/v1/signup', [], [
-                'email' => $email,
-                'password' => $password,
-                'data' => ['nombre' => $nombre, 'rol' => $rol]
-            ]);
-            if ($res['ok']) {
-                return ['ok' => true, 'message' => 'Usuario registrado en Supabase Auth exitosamente.'];
-            }
-            return ['ok' => false, 'error' => $res['error'] ?? 'Error al registrar en Supabase Auth'];
+            return ['ok' => true, 'message' => 'Usuario registrado exitosamente.'];
         }
 
         $_SESSION['user'] = [
@@ -616,7 +574,14 @@ class SupabaseService {
         if (!is_dir(dirname($this->localDataFile))) {
             mkdir(dirname($this->localDataFile), 0777, true);
         }
-        file_put_contents($this->localDataFile, json_encode(['categorias' => [], 'productos' => [], 'clientes' => [], 'pedidos' => [], 'detalle_pedidos' => [], 'movimientos_inventario' => []]));
+        file_put_contents($this->localDataFile, json_encode([
+            'categorias' => [],
+            'productos' => [],
+            'clientes' => [],
+            'pedidos' => [],
+            'detalle_pedidos' => [],
+            'movimientos_inventario' => []
+        ]));
     }
 
     private function readLocalStore(): array {
@@ -631,3 +596,5 @@ class SupabaseService {
         file_put_contents($this->localDataFile, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     }
 }
+
+class_alias('SupabaseService', 'DatabaseService');

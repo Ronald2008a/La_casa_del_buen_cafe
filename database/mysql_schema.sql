@@ -1,12 +1,9 @@
 -- ============================================================================
--- LA CASA DEL BUEN CAFÉ - ESQUEMA MYSQL / MARIADB PARA XAMPP (phpMyAdmin)
--- Base de datos: la_casa_del_buen_cafe
+-- BASE DE DATOS: LA CASA DEL BUEN CAFÉ
+-- Motor: XAMPP MySQL / MariaDB (Optimizado con Índices de Rendimiento)
 -- ============================================================================
 
-CREATE DATABASE IF NOT EXISTS `la_casa_del_buen_cafe`
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
+CREATE DATABASE IF NOT EXISTS `la_casa_del_buen_cafe` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE `la_casa_del_buen_cafe`;
 
 -- 1. TABLA DE CATEGORÍAS
@@ -39,7 +36,7 @@ CREATE TABLE IF NOT EXISTS `productos` (
     CONSTRAINT `fk_productos_categoria` FOREIGN KEY (`categoria_id`) REFERENCES `categorias`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 3. TABLA DE CLIENTES
+-- 3. TABLA DE CLIENTES (Fidelización Club del Café)
 CREATE TABLE IF NOT EXISTS `clientes` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `nombre` VARCHAR(150) NOT NULL,
@@ -50,13 +47,13 @@ CREATE TABLE IF NOT EXISTS `clientes` (
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 4. TABLA DE USUARIOS
+-- 4. TABLA DE USUARIOS / PERSONAL
 CREATE TABLE IF NOT EXISTS `usuarios` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `nombre` VARCHAR(150) NOT NULL,
     `email` VARCHAR(150) NOT NULL UNIQUE,
     `password_hash` VARCHAR(255) NULL,
-    `rol` ENUM('admin', 'cajero', 'barista', 'cliente') DEFAULT 'admin',
+    `rol` ENUM('admin', 'cajero', 'barista') DEFAULT 'admin',
     `activo` TINYINT(1) DEFAULT 1,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -106,6 +103,16 @@ CREATE TABLE IF NOT EXISTS `movimientos_inventario` (
     CONSTRAINT `fk_movimiento_producto` FOREIGN KEY (`producto_id`) REFERENCES `productos`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ÍNDICES DE RENDIMIENTO PARA CONSULTAS FRECUENTES
+CREATE INDEX `idx_productos_cat` ON `productos`(`categoria_id`);
+CREATE INDEX `idx_productos_activo` ON `productos`(`activo`);
+CREATE INDEX `idx_productos_destacado` ON `productos`(`destacado`);
+CREATE INDEX `idx_pedidos_estado` ON `pedidos`(`estado`);
+CREATE INDEX `idx_pedidos_folio` ON `pedidos`(`folio`);
+CREATE INDEX `idx_pedidos_cliente` ON `pedidos`(`cliente_id`);
+CREATE INDEX `idx_detalle_pedido` ON `detalle_pedidos`(`pedido_id`);
+CREATE INDEX `idx_clientes_email` ON `clientes`(`email`);
+
 -- ============================================================================
 -- DATOS INICIALES (SEED DATA)
 -- ============================================================================
@@ -119,7 +126,8 @@ INSERT INTO `categorias` (`id`, `nombre`, `descripcion`, `icono`) VALUES
 (6, 'Platanitos Mixtos', 'Mezcla crujiente de platanitos verdes salados y maduros dulces', 'fa-bowl-food'),
 (7, 'Platanitos Maduros', 'Chips artesanales de plátano maduro naturalmente dulces', 'fa-sun'),
 (8, 'Platanitos Verdes', 'Chips crocantes de plátano verde con toque de sal marina', 'fa-leaf'),
-(9, 'Bebidas', 'Café de especialidad colombiano, bebidas calientes y frías', 'fa-mug-hot')
+(9, 'Bebidas', 'Café de especialidad colombiano, bebidas calientes y frías', 'fa-mug-hot'),
+(10, 'Platanitos Mix de Chicharrón', 'Chicharrón con platanitos', 'fa-cookie-bite')
 ON DUPLICATE KEY UPDATE
   `nombre` = VALUES(`nombre`),
   `descripcion` = VALUES(`descripcion`),
@@ -128,16 +136,20 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO `productos` (`id`, `categoria_id`, `codigo`, `nombre`, `descripcion`, `origen`, `tueste`, `precio`, `costo`, `stock`, `stock_minimo`, `imagen_url`, `destacado`) VALUES
 (1, 1, 'TOR-001', 'Torta Húmeda de Café y Nueces', 'Bizcocho artesanal bañado en reducción de espresso y nuez pecana.', 'Horneado Local', 'N/A', 11500, 4200, 20, 5, 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=600&q=80', 1),
 (2, 1, 'TOR-002', 'Torta Casera de Zanahoria y Especias', 'Con frosting suave de queso crema y canela recién molida.', 'Horneado Local', 'N/A', 10500, 3900, 15, 5, 'https://images.unsplash.com/photo-1621303837174-89787a7d4729?auto=format&fit=crop&w=600&q=80', 1),
-(3, 2, 'GAL-001', 'Galletas Integral de Avena y Arándanos', 'Paquete de galletas integrales artesanales endulzadas con miel.', 'Artesanal', 'N/A', 5500, 2000, 45, 10, 'https://images.unsplash.com/photo-1499636136210-6f4ee915583e?auto=format&fit=crop&w=600&q=80', 1),
-(4, 3, 'EMP-001', 'Empanada Mixta Especial', 'Rellena de carne desmechada, pollo y corazón de queso fundido.', 'Cocina Local', 'N/A', 4500, 1600, 60, 15, 'https://images.unsplash.com/photo-1604908554025-aaa87c152c7b?auto=format&fit=crop&w=600&q=80', 1),
-(5, 4, 'EMP-002', 'Empanada Tradicional de Carne', 'Masa crocante de maíz con carne sazonada y ají casero.', 'Cocina Local', 'N/A', 4000, 1400, 75, 15, 'https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?auto=format&fit=crop&w=600&q=80', 0),
-(6, 5, 'EMP-003', 'Empanada Criolla de Pollo', 'Pollo desmechado en guiso tradicional colombiano bien dorada.', 'Cocina Local', 'N/A', 4000, 1400, 70, 15, 'https://images.unsplash.com/photo-1626700051175-6818013e1d4f?auto=format&fit=crop&w=600&q=80', 0),
-(7, 6, 'PLA-001', 'Paquete Platanitos Mixtos 150g', 'Combinación ideal de tajaditas verdes y maduras recién hechas.', 'Quindío, Colombia', 'N/A', 6500, 2200, 50, 10, 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=600&q=80', 1),
-(8, 7, 'PLA-002', 'Platanitos Maduros Dulces 150g', 'Tajaditas crocantes de plátano maduro con su dulzor natural.', 'Valle del Cauca', 'N/A', 6000, 2000, 40, 10, 'https://images.unsplash.com/photo-1599490659213-e2b9527bd087?auto=format&fit=crop&w=600&q=80', 0),
-(9, 8, 'PLA-003', 'Platanitos Verdes con Sal Marina 150g', 'Chips de plátano verde extra crocantes con toque de sal.', 'Urabá / Caldas', 'N/A', 6000, 2000, 55, 10, 'https://images.unsplash.com/photo-1613919113640-25732ec5e61f?auto=format&fit=crop&w=600&q=80', 0),
+(3, 2, 'GALIN-99', 'Galletas Integral de Avena', 'Paquete de galletas integrales de avena', 'Artesanal', 'N/A', 3500, 2000, 20, 5, 'https://images.unsplash.com/photo-1499636136210-6f4ee915583e?auto=format&fit=crop&w=600&q=80', 1),
+(4, 3, 'EMP-001', 'Empanada Mixta Especial', 'Rellena de carne desmechada, pollo', 'Cocina Local', 'N/A', 6000, 4000, 10, 3, 'uploads/prod_1793470733_605.png', 1),
+(5, 4, 'EMP-002', 'Empanada de Carne', 'Masa con carne desmechada', 'Cocina Local', 'N/A', 6000, 4000, 10, 5, 'uploads/prod_1793470620_604.png', 0),
+(6, 5, 'EMP-69', 'Empanada de Pollo', 'Pollo desmechado', 'Cocina Local', 'N/A', 6000, 4000, 10, 3, 'uploads/prod_1793470380_426.png', 0),
+(7, 6, 'PLA-001', 'Paquete Platanitos Mixtos 150g', 'Combinación ideal de tajaditas verdes y maduras recién hechas.', 'Quindío, Colombia', 'N/A', 6500, 2200, 50, 10, 'uploads/prod_1794079260_727.jpg', 1),
+(8, 7, 'PLA-002', 'Platanitos Maduros Dulces 150g', 'Tajaditas crocantes de plátano maduro con su dulzor natural.', 'Valle del Cauca', 'N/A', 6000, 2000, 40, 10, 'uploads/prod_1794079588_669.jpg', 0),
+(9, 8, 'PLA-003', 'Platanitos Verdes Sabor Natural  40g', 'Chips de plátano verde extra crocantes con toque de sal.', 'Huila, Colombia', 'N/A', 3500, 2000, 5, 2, 'uploads/prod_1794073674_501.jpg', 0),
 (10, 9, 'BEB-001', 'Cappuccino Artesanal de Origen 8oz', 'Doble shot de espresso colombiano con leche texturizada sedosa.', 'Huila, Colombia', 'Medio', 8500, 2800, 120, 15, 'https://images.unsplash.com/photo-1572442388796-11668a67e53d?auto=format&fit=crop&w=600&q=80', 1),
 (11, 9, 'BEB-002', 'Cold Brew Naranja & Café', 'Infusión de café en frío por 18 horas refrescante.', 'Sierra Nevada', 'Medio', 11500, 3800, 45, 10, 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?auto=format&fit=crop&w=600&q=80', 1),
-(12, 9, 'CAF-001', 'Café en Grano/Molido Reserva Huila 500g', 'Notas a panela, frutos rojos y chocolate oscuro. Puntaje SCA 86.', 'Pitalito, Huila', 'Medio', 42000, 24000, 35, 8, 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&w=600&q=80', 1)
+(12, 9, 'CAF-001', 'Café en Grano/Molido Reserva Huila 500g', 'Notas a panela, frutos rojos y chocolate oscuro. Puntaje SCA 86.', 'Pitalito, Huila', 'Medio', 42000, 24000, 35, 8, 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&w=600&q=80', 1),
+(13, 1, 'TORED-84', 'Torta Red Velvet', 'Por porcion y completa', 'Huila, Colombia', 'N/A', 6000, 6000, 9, 3, 'https://tortasytortas.com.co/images/virtuemart/product/resized/red%20velvet%20web_640x200.jpg', 0),
+(14, 9, 'SPEE-95', 'Speed Max', 'Bebida Energizante', 'Colombia', 'N/A', 3500, 25000, 25, 5, 'uploads/prod_1793473739_358.jpg', 0),
+(15, 9, 'AGUILI45', 'Cerveza Aguila Ligth', 'Bebida Alcoholica', 'Colombia', 'N/A', 5000, 3500, 22, 5, 'uploads/prod_1793473266_255.jpg', 0),
+(16, 10, 'PLAMC-073', 'Platanitos Mix de Chicharrón 40g', 'Chicharrón con Platanitos', 'Huila, Colombia', 'N/A', 35000, 2000, 8, 5, 'uploads/prod_1794080699_803.jpg', 0)
 ON DUPLICATE KEY UPDATE
   `categoria_id` = VALUES(`categoria_id`),
   `nombre` = VALUES(`nombre`),
@@ -158,18 +170,3 @@ INSERT IGNORE INTO `clientes` (`id`, `nombre`, `email`, `telefono`, `direccion`,
 INSERT IGNORE INTO `usuarios` (`id`, `nombre`, `email`, `password_hash`, `rol`) VALUES
 (1, 'Administrador Principal', 'admin@casadelbuencafe.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin'),
 (2, 'Cajero Turno Mañana', 'caja@casadelbuencafe.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'cajero');
-
-INSERT IGNORE INTO `pedidos` (`id`, `folio`, `cliente_id`, `cliente_nombre`, `tipo`, `metodo_pago`, `subtotal`, `impuestos`, `total`, `estado`, `direccion_entrega`, `notas`) VALUES
-(1, 'WEB-1001', 2, 'Estefanía Olaya', 'tienda_online', 'tarjeta', 59000, 0, 59000, 'completado', 'Calle 85 #14-20, Bogotá', 'Molienda media para filtro'),
-(2, 'POS-1002', 1, 'Cliente Mostrador', 'pos', 'efectivo', 20500, 0, 20500, 'preparando', 'Consumo en Barra - Mesa 4', 'Sin azúcar');
-
-INSERT IGNORE INTO `detalle_pedidos` (`id`, `pedido_id`, `producto_id`, `nombre_producto`, `cantidad`, `precio_unitario`, `subtotal`) VALUES
-(1, 1, 1, 'Reserva Especial Huila 500g', 1, 42000, 42000),
-(2, 1, 4, 'Cappuccino Artesanal 8oz', 2, 8500, 17000),
-(3, 2, 6, 'Filtrado V60 de Origen', 1, 11000, 11000),
-(4, 2, 9, 'Croissant de Almendras', 1, 9500, 9500);
-
-INSERT IGNORE INTO `movimientos_inventario` (`id`, `producto_id`, `tipo`, `cantidad`, `stock_anterior`, `stock_nuevo`, `motivo`) VALUES
-(1, 1, 'entrada', 35, 0, 35, 'Lote inicial tostión octubre');
-
-
