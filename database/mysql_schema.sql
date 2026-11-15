@@ -169,4 +169,6 @@ INSERT IGNORE INTO `clientes` (`id`, `nombre`, `email`, `telefono`, `direccion`,
 
 INSERT IGNORE INTO `usuarios` (`id`, `nombre`, `email`, `password_hash`, `rol`) VALUES
 (1, 'Administrador Principal', 'admin@casadelbuencafe.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin'),
-(2, 'Cajero Turno Mañana', 'caja@casadelbuencafe.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'cajero');
+(2, 'Cajero Turno Mañana', 'caja@casadelbuencafe.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'cajero'),
+(3, 'Cajero de Turno / POS', 'cajero@casadelbuencafe.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'cajero'),
+(4, 'Barista / Jefe de Barra', 'barista@casadelbuencafe.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'barista');

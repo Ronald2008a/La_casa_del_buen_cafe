@@ -512,32 +512,139 @@ class SupabaseService {
         return ['ok' => false, 'error' => 'No encontrado'];
     }
 
-    public function signIn(string $email, string $password): array {
-        if ($this->isMySQLConnected && $this->pdo) {
-            $stmt = $this->pdo->prepare("SELECT * FROM `usuarios` WHERE `email` = :email LIMIT 1");
-            $stmt->execute([':email' => $email]);
-            $u = $stmt->fetch();
-            if ($u) {
-                $_SESSION['user'] = [
-                    'email'  => $u['email'],
-                    'nombre' => $u['nombre'],
-                    'rol'    => $u['rol'] ?? 'admin',
-                    'modo'   => 'XAMPP MySQL'
+    public function signIn(string $email, string $password, ?string $expectedRole = null): array {
+        $email = trim(strtolower($email));
+        $expectedRole = $expectedRole ? trim(strtolower($expectedRole)) : null;
+
+        // 1. AUTENTICACIÓN COMO CLIENTE DEL CLUB DEL CAFÉ
+        if ($expectedRole === 'cliente') {
+            if ($this->isMySQLConnected && $this->pdo) {
+                $stmt = $this->pdo->prepare("SELECT * FROM `clientes` WHERE LOWER(`email`) = :email LIMIT 1");
+                $stmt->execute([':email' => $email]);
+                $c = $stmt->fetch();
+                if ($c) {
+                    $_SESSION['user'] = [
+                        'id'        => (int)$c['id'],
+                        'email'     => $c['email'],
+                        'nombre'    => $c['nombre'],
+                        'telefono'  => $c['telefono'] ?? '',
+                        'direccion' => $c['direccion'] ?? '',
+                        'puntos'    => (int)($c['puntos'] ?? 0),
+                        'rol'       => 'cliente',
+                        'modo'      => 'XAMPP MySQL'
+                    ];
+                    return ['ok' => true];
+                }
+            }
+
+            $store = $this->readLocalStore();
+            $clientes = $store['clientes'] ?? [];
+            foreach ($clientes as $c) {
+                if (strtolower($c['email'] ?? '') === $email) {
+                    $_SESSION['user'] = [
+                        'id'        => (int)($c['id'] ?? 0),
+                        'email'     => $c['email'],
+                        'nombre'    => $c['nombre'],
+                        'telefono'  => $c['telefono'] ?? '',
+                        'direccion' => $c['direccion'] ?? '',
+                        'puntos'    => (int)($c['puntos'] ?? 0),
+                        'rol'       => 'cliente',
+                        'modo'      => 'Respaldo Local'
+                    ];
+                    return ['ok' => true];
+                }
+            }
+
+            // Auto-registro como nuevo cliente si el correo es válido
+            if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $nombreAuto = ucfirst(explode('@', $email)[0]);
+                $nuevo = [
+                    'nombre'    => $nombreAuto,
+                    'email'     => $email,
+                    'telefono'  => '',
+                    'direccion' => 'Neiva, Huila',
+                    'puntos'    => 50
                 ];
-                return ['ok' => true];
+                $ins = $this->insert('clientes', $nuevo);
+                $_SESSION['user'] = [
+                    'id'        => (int)($ins['data']['id'] ?? 999),
+                    'email'     => $email,
+                    'nombre'    => $nombreAuto,
+                    'telefono'  => '',
+                    'direccion' => 'Neiva, Huila',
+                    'puntos'    => 50,
+                    'rol'       => 'cliente',
+                    'modo'      => $this->isMySQLConnected ? 'XAMPP MySQL' : 'Respaldo Local'
+                ];
+                return ['ok' => true, 'message' => '¡Bienvenido al Club! Te hemos obsequiado 50 puntos de bienvenida.'];
+            }
+
+            return ['ok' => false, 'error' => 'Ingresa un correo electrónico válido de cliente.'];
+        }
+
+        // 2. AUTENTICACIÓN DE PERSONAL (ADMIN, CAJERO, BARISTA)
+        $userData = null;
+        if ($this->isMySQLConnected && $this->pdo) {
+            $stmt = $this->pdo->prepare("SELECT * FROM `usuarios` WHERE LOWER(`email`) = :email LIMIT 1");
+            $stmt->execute([':email' => $email]);
+            $userData = $stmt->fetch();
+        }
+
+        if (!$userData) {
+            $store = $this->readLocalStore();
+            $usuarios = $store['usuarios'] ?? [];
+            foreach ($usuarios as $u) {
+                if (strtolower($u['email'] ?? '') === $email) {
+                    $userData = $u;
+                    break;
+                }
             }
         }
 
-        if (!empty($email) && !empty($password)) {
+        if ($userData) {
+            $rolReal = strtolower($userData['rol'] ?? 'admin');
+            // Validar que el portal corresponda al rol del usuario
+            if ($expectedRole && $expectedRole !== $rolReal) {
+                $nombrePortalEsperado = match($rolReal) {
+                    'admin'   => 'Administrador',
+                    'cajero'  => 'Cajero / POS',
+                    'barista' => 'Barista / Cocina',
+                    default   => ucfirst($rolReal)
+                };
+                return [
+                    'ok' => false,
+                    'error' => "Acceso restringido: Esta cuenta tiene permisos de '{$nombrePortalEsperado}'. Debes iniciar sesión desde su portal exclusivo."
+                ];
+            }
+
             $_SESSION['user'] = [
-                'email' => $email,
-                'nombre' => ($email === 'admin@casadelbuencafe.com') ? 'Administrador Principal' : ucfirst(explode('@', $email)[0]),
-                'rol' => 'admin',
-                'modo' => 'Sesión Local'
+                'id'     => (int)($userData['id'] ?? 0),
+                'email'  => $userData['email'],
+                'nombre' => $userData['nombre'],
+                'rol'    => $rolReal,
+                'modo'   => $this->isMySQLConnected ? 'XAMPP MySQL' : 'Respaldo Local'
             ];
             return ['ok' => true];
         }
-        return ['ok' => false, 'error' => 'Ingresa correo y contraseña válidos'];
+
+        // Si no está registrado en la base de datos pero se especifica un rol válido en el portal
+        if ($expectedRole && in_array($expectedRole, ['admin', 'cajero', 'barista'], true)) {
+            $nombresDefault = [
+                'admin'   => 'Administrador General',
+                'cajero'  => 'Cajero de Turno',
+                'barista' => 'Barista / Maestro Cafetero'
+            ];
+            $_SESSION['user'] = [
+                'id'     => 1,
+                'email'  => $email,
+                'nombre' => $nombresDefault[$expectedRole] ?? ucfirst(explode('@', $email)[0]),
+                'rol'    => $expectedRole,
+                'modo'   => 'Sesión Operativa'
+            ];
+            return ['ok' => true];
+        }
+
+        return ['ok' => false, 'error' => 'Credenciales inválidas o correo no registrado para este portal.'];
     }
 
     public function signUp(string $nombre, string $email, string $password, string $rol = 'admin'): array {

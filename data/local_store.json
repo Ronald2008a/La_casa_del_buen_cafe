@@ -337,7 +337,8 @@
             "telefono": "0000000000",
             "direccion": "Venta directa en tienda",
             "puntos": 0,
-            "created_at": "2026-10-28T09:00:00-05:00"
+            "created_at": "2026-10-28T09:00:00-05:00",
+            "password_hash": "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC\/.og\/at2.uheWG\/igi"
         },
         {
             "id": 2,
@@ -346,7 +347,8 @@
             "telefono": "3105551234",
             "direccion": "Calle 85 #14-20, Bogotá",
             "puntos": 150,
-            "created_at": "2026-10-28T10:30:00-05:00"
+            "created_at": "2026-10-28T10:30:00-05:00",
+            "password_hash": "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC\/.og\/at2.uheWG\/igi"
         },
         {
             "id": 3,
@@ -355,7 +357,8 @@
             "telefono": "3158889900",
             "direccion": "Carrera 43A #10-50, Medellín",
             "puntos": 85,
-            "created_at": "2026-10-29T11:15:00-05:00"
+            "created_at": "2026-10-29T11:15:00-05:00",
+            "password_hash": "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC\/.og\/at2.uheWG\/igi"
         },
         {
             "id": 4,
@@ -364,7 +367,8 @@
             "telefono": "3004443322",
             "direccion": "Avenida 6N #25-10, Cali",
             "puntos": 220,
-            "created_at": "2026-10-29T14:20:00-05:00"
+            "created_at": "2026-10-29T14:20:00-05:00",
+            "password_hash": "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC\/.og\/at2.uheWG\/igi"
         }
     ],
     "pedidos": [
@@ -455,7 +459,32 @@
             "nombre": "Administrador Principal",
             "email": "admin@casadelbuencafe.com",
             "rol": "admin",
-            "activo": true
+            "activo": 1,
+            "password_hash": "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC\/.og\/at2.uheWG\/igi"
+        },
+        {
+            "id": 2,
+            "nombre": "Cajero de Turno \/ POS",
+            "email": "cajero@casadelbuencafe.com",
+            "rol": "cajero",
+            "activo": 1,
+            "password_hash": "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC\/.og\/at2.uheWG\/igi"
+        },
+        {
+            "id": 3,
+            "nombre": "Caja Mostrador",
+            "email": "caja@casadelbuencafe.com",
+            "rol": "cajero",
+            "activo": 1,
+            "password_hash": "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC\/.og\/at2.uheWG\/igi"
+        },
+        {
+            "id": 4,
+            "nombre": "Barista \/ Jefe de Barra",
+            "email": "barista@casadelbuencafe.com",
+            "rol": "barista",
+            "activo": 1,
+            "password_hash": "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC\/.og\/at2.uheWG\/igi"
         }
     ]
 }

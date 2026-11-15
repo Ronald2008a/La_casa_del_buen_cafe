@@ -7,28 +7,33 @@
 
 require_once __DIR__ . '/includes/actions.php';
 
-// Cambio rápido de perfil (para pruebas ágiles entre Admin y Trabajador)
-if (isset($_GET['switch_role'])) {
-    $r = ($_GET['switch_role'] === 'cajero') ? 'cajero' : 'admin';
-    $_SESSION['user'] = [
-        'email'  => ($r === 'admin') ? 'admin@casadelbuencafe.com' : 'caja@casadelbuencafe.com',
-        'nombre' => ($r === 'admin') ? 'Administrador Principal' : 'Trabajador / Barista Turno',
-        'rol'    => $r,
-        'modo'   => 'XAMPP MySQL'
-    ];
-    header('Location: admin.php?tab=' . ($r === 'admin' ? 'dashboard' : 'pos'));
+$user = $_SESSION['user'] ?? null;
+
+// Si el usuario autenticado es un Cliente, redirigir a su portal privado de cliente
+if ($user && ($user['rol'] ?? '') === 'cliente') {
+    header('Location: cliente.php');
     exit;
 }
 
-$user = $_SESSION['user'] ?? null;
 $rolUsuario = $user['rol'] ?? 'admin';
-$esAdmin = ($rolUsuario === 'admin');
+$esAdmin   = ($rolUsuario === 'admin');
+$esCajero  = ($rolUsuario === 'cajero');
+$esBarista = ($rolUsuario === 'barista');
 
-$tab = $_GET['tab'] ?? ($esAdmin ? 'dashboard' : 'pos');
-
-// Si un trabajador intenta entrar a pestañas exclusivas de admin, redirigir a POS
-if (!$esAdmin && in_array($tab, ['dashboard', 'inventario', 'configuracion'], true)) {
-    $tab = 'pos';
+// Restricción estricta de pestañas según el rol autenticado
+if ($esBarista) {
+    // El barista únicamente tiene acceso al monitor KDS de Comandas
+    $tab = 'pedidos';
+} elseif ($esCajero) {
+    // El cajero solo puede operar POS, ver pedidos de barra y consultar/registrar clientes
+    $tabPermitidas = ['pos', 'pedidos', 'clientes'];
+    $tabSolicitada = $_GET['tab'] ?? 'pos';
+    $tab = in_array($tabSolicitada, $tabPermitidas, true) ? $tabSolicitada : 'pos';
+} elseif ($esAdmin) {
+    // El administrador tiene acceso a todos los módulos
+    $tab = $_GET['tab'] ?? 'dashboard';
+} else {
+    $tab = 'dashboard';
 }
 
 // Consultas a XAMPP MySQL
@@ -68,17 +73,26 @@ $urlMovilTienda = "http://{$ipLocalRed}/La_casa_del_buen_cafe/";
 $urlMovilAdmin  = "http://{$ipLocalRed}/La_casa_del_buen_cafe/admin.php";
 $lastOrderIdInicial = !empty($pedidos[0]['id']) ? (int)$pedidos[0]['id'] : 0;
 
-// Menú según el rol (Administrador ve todo; Trabajador ve operación de barra y clientes)
+// Menú dinámico según el rol autenticado (Admin ve todo, Cajero ve POS/Comandas/Clientes, Barista ve KDS)
 $navItems = [];
 if ($esAdmin) {
     $navItems['dashboard'] = ['label' => 'Panel Admin',    'icon' => 'fa-chart-line',     'sub' => 'KPIs & Analítica'];
 }
-$navItems['pos']        = ['label' => 'Terminal POS',   'icon' => 'fa-cash-register',  'sub' => 'Caja & Facturación'];
-$navItems['pedidos']    = ['label' => 'Comandas',       'icon' => 'fa-bell-concierge', 'sub' => 'Órdenes Web y Barra', 'badge' => $pedidosPendientes];
+if ($esAdmin || $esCajero) {
+    $navItems['pos']        = ['label' => 'Terminal POS',   'icon' => 'fa-cash-register',  'sub' => 'Caja & Facturación'];
+}
+$navItems['pedidos']    = [
+    'label' => ($esBarista ? 'Monitor KDS' : 'Comandas'),
+    'icon' => 'fa-bell-concierge',
+    'sub' => ($esBarista ? 'Preparación en Barra' : 'Órdenes Web y Barra'),
+    'badge' => $pedidosPendientes
+];
 if ($esAdmin) {
     $navItems['inventario'] = ['label' => 'Inventario CRUD','icon' => 'fa-boxes-stacked',  'sub' => 'Productos & Kardex', 'badge' => count($productosStockBajo)];
 }
-$navItems['clientes']   = ['label' => 'Clientes',       'icon' => 'fa-users',          'sub' => 'Club & Puntos'];
+if ($esAdmin || $esCajero) {
+    $navItems['clientes']   = ['label' => 'Clientes',       'icon' => 'fa-users',          'sub' => 'Club & Puntos'];
+}
 if ($esAdmin) {
     $navItems['configuracion'] = ['label' => 'Base de Datos', 'icon' => 'fa-database',    'sub' => 'XAMPP MySQL / phpMyAdmin'];
 }
@@ -140,93 +154,162 @@ if ($esAdmin) {
 
     <?php if (!$user): ?>
         <!-- ================================================================== -->
-        <!-- PANTALLA DE LOGIN PARA ADMINISTRADOR Y TRABAJADOR                  -->
+        <!-- SELECTOR DE LOGIN POR ROLES INDEPENDIENTES                         -->
         <!-- ================================================================== -->
         <div class="min-h-screen flex items-center justify-center p-4 coffee-gradient relative overflow-hidden">
             <img src="https://images.unsplash.com/photo-1442512595331-e89e73853f31?auto=format&fit=crop&w=1600&q=80"
-                 alt="" class="absolute inset-0 w-full h-full object-cover opacity-20">
+                 alt="" class="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none">
 
-            <div class="relative z-10 max-w-md w-full bg-white rounded-3xl shadow-2xl border border-amber-500/40 p-7 sm:p-8 space-y-6">
+            <div class="relative z-10 max-w-xl w-full bg-white rounded-3xl shadow-2xl border-2 border-amber-500/50 p-6 sm:p-8 space-y-6">
                 <div class="text-center space-y-2">
                     <img src="logo.php" alt="La Casa del Buen Café"
-                         class="w-24 h-24 rounded-full object-cover mx-auto shadow-xl border-2 border-[#E8B78D]">
-                    <span class="text-[11px] font-extrabold uppercase tracking-widest text-amber-700 block pt-1">Intranet Operativa</span>
-                    <h1 class="font-display text-2xl font-bold text-stone-900">Portal Admin & Trabajadores</h1>
-                    <p class="text-xs text-stone-500">Selecciona tu perfil operativo o ingresa tus credenciales de personal</p>
+                         class="w-20 h-20 rounded-full object-cover mx-auto shadow-xl border-2 border-amber-400">
+                    <span class="text-[11px] font-extrabold uppercase tracking-widest text-amber-700 block pt-1">
+                        <i class="fa-solid fa-users-gear mr-1"></i> Intranet & Gestión por Roles
+                    </span>
+                    <h1 class="font-display font-bold text-stone-900">Iniciar Sesión por Rol</h1>
+                    <p class="text-stone-500 text-xs sm:text-sm">Cada rol tiene su propio portal independiente y herramientas específicas</p>
                 </div>
 
                 <?php if ($flash): ?>
-                    <div class="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-semibold">
+                    <div class="p-3.5 rounded-2xl <?= ($flash['type'] ?? '') === 'error' ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800' ?> text-xs font-semibold">
+                        <i class="fa-solid <?= ($flash['type'] ?? '') === 'error' ? 'fa-triangle-exclamation' : 'fa-circle-check' ?> mr-1.5"></i>
                         <?= htmlspecialchars($flash['message']) ?>
                     </div>
                 <?php endif; ?>
 
-                <!-- Botones de Acceso Rápido 1-Clic por Rol -->
-                <div class="space-y-2.5">
-                    <p class="text-[11px] font-bold uppercase tracking-wider text-stone-400 text-center">Acceso Rápido por Rol</p>
-                    <div class="grid grid-cols-2 gap-3">
-                        <form method="POST" action="admin.php">
-                            <input type="hidden" name="action" value="login">
-                            <input type="hidden" name="email" value="admin@casadelbuencafe.com">
-                            <input type="hidden" name="password" value="password">
-                            <input type="hidden" name="quick_role" value="admin">
-                            <button type="submit" class="w-full p-3.5 rounded-2xl coffee-gradient text-white hover:opacity-95 transition text-left space-y-1 shadow-md">
-                                <i class="fa-solid fa-crown text-amber-400 text-base"></i>
-                                <span class="block font-extrabold text-xs">Administrador</span>
-                                <span class="block text-[10px] text-stone-300">Control Total + CRUD</span>
-                            </button>
-                        </form>
+                <!-- 4 Tarjetas de Acceso Independiente por Rol -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
 
-                        <form method="POST" action="admin.php">
-                            <input type="hidden" name="action" value="login">
-                            <input type="hidden" name="email" value="caja@casadelbuencafe.com">
-                            <input type="hidden" name="password" value="password">
-                            <input type="hidden" name="quick_role" value="cajero">
-                            <button type="submit" class="w-full p-3.5 rounded-2xl bg-amber-100 hover:bg-amber-200 text-stone-900 border border-amber-300 transition text-left space-y-1 shadow-sm">
-                                <i class="fa-solid fa-cash-register text-amber-800 text-base"></i>
-                                <span class="block font-extrabold text-xs">Trabajador / Barista</span>
-                                <span class="block text-[10px] text-stone-600">Caja POS + Comandas</span>
-                            </button>
-                        </form>
+                    <!-- 1. Administrador -->
+                    <div class="p-4 rounded-2xl border-2 border-amber-500/40 bg-stone-50/80 hover:bg-white hover:border-amber-500 transition shadow-sm space-y-2.5">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-crown"></i>
+                            </div>
+                            <div>
+                                <span class="block font-extrabold text-xs text-stone-900">Administrador</span>
+                                <span class="block text-[10px] text-stone-500">Control Total + CRUD</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 pt-1">
+                            <a href="login_admin.php" class="flex-1 py-2 rounded-xl coffee-gradient text-white text-[11px] font-bold text-center hover:opacity-95 transition">
+                                Abrir Login
+                            </a>
+                            <form method="POST" action="includes/actions.php" class="inline">
+                                <input type="hidden" name="action" value="login">
+                                <input type="hidden" name="portal_rol" value="admin">
+                                <input type="hidden" name="email" value="admin@casadelbuencafe.com">
+                                <input type="hidden" name="password" value="password">
+                                <button type="submit" class="px-2.5 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 text-[11px] font-bold transition" title="1-Clic">
+                                    <i class="fa-solid fa-bolt"></i>
+                                </button>
+                            </form>
+                        </div>
                     </div>
+
+                    <!-- 2. Cajero -->
+                    <div class="p-4 rounded-2xl border-2 border-emerald-500/40 bg-stone-50/80 hover:bg-white hover:border-emerald-500 transition shadow-sm space-y-2.5">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-700 flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-cash-register"></i>
+                            </div>
+                            <div>
+                                <span class="block font-extrabold text-xs text-stone-900">Cajero (POS)</span>
+                                <span class="block text-[10px] text-stone-500">Caja & Facturación</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 pt-1">
+                            <a href="login_cajero.php" class="flex-1 py-2 rounded-xl bg-emerald-800 text-white text-[11px] font-bold text-center hover:bg-emerald-700 transition">
+                                Abrir Login
+                            </a>
+                            <form method="POST" action="includes/actions.php" class="inline">
+                                <input type="hidden" name="action" value="login">
+                                <input type="hidden" name="portal_rol" value="cajero">
+                                <input type="hidden" name="email" value="cajero@casadelbuencafe.com">
+                                <input type="hidden" name="password" value="password">
+                                <button type="submit" class="px-2.5 py-2 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-900 text-[11px] font-bold transition" title="1-Clic">
+                                    <i class="fa-solid fa-bolt"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- 3. Barista -->
+                    <div class="p-4 rounded-2xl border-2 border-amber-600/40 bg-stone-50/80 hover:bg-white hover:border-amber-600 transition shadow-sm space-y-2.5">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-mug-hot"></i>
+                            </div>
+                            <div>
+                                <span class="block font-extrabold text-xs text-stone-900">Barista / Barra</span>
+                                <span class="block text-[10px] text-stone-500">Monitor KDS Comandas</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 pt-1">
+                            <a href="login_barista.php" class="flex-1 py-2 rounded-xl bg-amber-900 text-white text-[11px] font-bold text-center hover:bg-amber-800 transition">
+                                Abrir Login
+                            </a>
+                            <form method="POST" action="includes/actions.php" class="inline">
+                                <input type="hidden" name="action" value="login">
+                                <input type="hidden" name="portal_rol" value="barista">
+                                <input type="hidden" name="email" value="barista@casadelbuencafe.com">
+                                <input type="hidden" name="password" value="password">
+                                <button type="submit" class="px-2.5 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 text-[11px] font-bold transition" title="1-Clic">
+                                    <i class="fa-solid fa-bolt"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- 4. Cliente -->
+                    <div class="p-4 rounded-2xl border-2 border-amber-300/80 bg-stone-50/80 hover:bg-white hover:border-amber-400 transition shadow-sm space-y-2.5">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-award"></i>
+                            </div>
+                            <div>
+                                <span class="block font-extrabold text-xs text-stone-900">Club Cliente</span>
+                                <span class="block text-[10px] text-stone-500">Puntos & Pedidos</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 pt-1">
+                            <a href="login_cliente.php" class="flex-1 py-2 rounded-xl gold-gradient text-stone-950 text-[11px] font-bold text-center hover:brightness-105 transition">
+                                Abrir Login
+                            </a>
+                            <form method="POST" action="includes/actions.php" class="inline">
+                                <input type="hidden" name="action" value="login">
+                                <input type="hidden" name="portal_rol" value="cliente">
+                                <input type="hidden" name="email" value="estefania@ejemplo.com">
+                                <input type="hidden" name="password" value="password">
+                                <button type="submit" class="px-2.5 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-stone-950 text-[11px] font-bold transition" title="1-Clic">
+                                    <i class="fa-solid fa-bolt"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
                 </div>
 
-                <!-- Formulario Clásico -->
-                <form method="POST" action="admin.php" class="space-y-3 pt-4 border-t border-stone-200 text-xs">
-                    <input type="hidden" name="action" value="login">
-                    <div>
-                        <label class="block font-bold text-stone-700 mb-1">Correo Corporativo</label>
-                        <input type="email" name="email" required value="admin@casadelbuencafe.com"
-                               class="w-full px-3.5 py-2.5 rounded-xl border border-stone-200">
-                    </div>
-                    <div>
-                        <label class="block font-bold text-stone-700 mb-1">Contraseña</label>
-                        <input type="password" name="password" required value="password"
-                               class="w-full px-3.5 py-2.5 rounded-xl border border-stone-200">
-                    </div>
-                    <button type="submit" class="w-full py-3 rounded-xl gold-gradient text-stone-950 font-extrabold text-sm shadow">
-                        Iniciar Sesión
-                    </button>
-                </form>
-
-                <div class="text-center pt-2">
-                    <a href="index.php" class="text-xs font-bold text-amber-800 hover:underline flex items-center justify-center gap-1.5">
-                        <i class="fa-solid fa-store"></i> Volver a la Tienda Pública de Clientes
+                <div class="text-center pt-3 border-t border-stone-200">
+                    <a href="index.php" class="text-xs font-bold text-amber-800 hover:underline inline-flex items-center gap-1.5">
+                        <i class="fa-solid fa-store"></i> Volver a la Tienda Pública
                     </a>
                 </div>
             </div>
         </div>
     <?php else: ?>
         <!-- ================================================================== -->
-        <!-- INTERFAZ INTERNA PARA ADMINISTRADOR / TRABAJADOR                   -->
+        <!-- INTERFAZ INTERNA PARA PERSONAL AUTENTICADO                         -->
         <!-- ================================================================== -->
         <header class="coffee-gradient text-white sticky top-0 z-40 shadow-2xl border-b border-amber-500/20">
             <!-- Barra de Estado del Sistema -->
             <div class="bg-black/40 border-b border-white/10 text-[11px] py-1.5 px-4">
                 <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
                     <div class="flex items-center gap-3">
-                        <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold uppercase">
-                            <i class="fa-solid fa-id-badge mr-1"></i> Modo: <?= $esAdmin ? 'ADMINISTRADOR GENERAL' : 'TRABAJADOR / CAJERO BARISTA' ?>
+                        <span class="px-2.5 py-0.5 rounded <?= $esAdmin ? 'bg-amber-400 text-stone-950 font-bold' : ($esCajero ? 'bg-emerald-500 text-white font-bold' : 'bg-amber-700 text-amber-100 font-bold') ?> uppercase text-[11px] flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid <?= $esAdmin ? 'fa-crown' : ($esCajero ? 'fa-cash-register' : 'fa-mug-hot') ?>"></i>
+                            <?= $esAdmin ? 'ADMINISTRADOR GENERAL' : ($esCajero ? 'CAJERO DE TURNO (POS)' : 'BARISTA / PREPARACIÓN KDS') ?>
                         </span>
                         <span class="hidden md:inline text-white/20">|</span>
                         <span class="hidden md:inline text-emerald-300 font-semibold">
@@ -243,16 +326,11 @@ if ($esAdmin) {
                             <i class="fa-solid fa-mobile-screen-button"></i> Conectar Celulares / QR
                         </button>
                         <span class="text-white/20">|</span>
-                        <!-- Selector rápido para alternar entre vista Admin y vista Trabajador -->
-                        <span class="hidden sm:inline text-stone-400">Rol:</span>
-                        <a href="admin.php?switch_role=admin" class="px-2 py-0.5 rounded <?= $esAdmin ? 'bg-amber-400 text-stone-950 font-bold' : 'text-stone-300 hover:text-white' ?>">
-                            Admin
-                        </a>
-                        <a href="admin.php?switch_role=cajero" class="px-2 py-0.5 rounded <?= !$esAdmin ? 'bg-amber-400 text-stone-950 font-bold' : 'text-stone-300 hover:text-white' ?>">
-                            Trabajador
+                        <a href="login.php" class="text-stone-300 hover:text-white transition flex items-center gap-1 text-[11px]">
+                            <i class="fa-solid fa-users-gear text-amber-400"></i> Cambiar Rol
                         </a>
                         <span class="text-white/20">|</span>
-                        <a href="index.php" target="_blank" class="text-amber-300 hover:text-white font-bold flex items-center gap-1">
+                        <a href="index.php" target="_blank" class="text-amber-300 hover:text-white font-bold flex items-center gap-1 text-[11px]">
                             <i class="fa-solid fa-up-right-from-square"></i> Tienda Clientes
                         </a>
                     </div>
@@ -269,7 +347,7 @@ if ($esAdmin) {
                                 Panel Interno — La Casa del Buen Café
                             </span>
                             <span class="text-[11px] text-amber-400 font-semibold block mt-1">
-                                <?= $esAdmin ? 'Administración, Inventario CRUD, POS & Base de Datos' : 'Operación de Barra POS, Comandas & Clientes' ?>
+                                <?= $esAdmin ? 'Administración, Inventario CRUD, POS & Base de Datos' : ($esCajero ? 'Terminal POS, Caja, Facturación & Clientes' : 'Monitor KDS de Preparación en Cocina y Barra') ?>
                             </span>
                         </div>
                     </a>
@@ -343,7 +421,7 @@ if ($esAdmin) {
             ?>
         </main>
 
-        <!-- Barra de Navegación Inferior Móvil para Trabajador/Barista -->
+        <!-- Barra de Navegación Inferior Móvil según el Rol -->
         <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-[#120A06]/95 backdrop-blur-md text-stone-300 border-t border-amber-500/30 z-30 px-2 py-1.5 flex items-center justify-around shadow-2xl">
             <?php if ($esAdmin): ?>
                 <a href="admin.php?tab=dashboard" class="flex flex-col items-center py-1 px-2 text-[11px] font-bold <?= $tab === 'dashboard' ? 'text-amber-400' : 'hover:text-amber-300' ?>">
@@ -351,13 +429,15 @@ if ($esAdmin) {
                     <span>Dashboard</span>
                 </a>
             <?php endif; ?>
-            <a href="admin.php?tab=pos" class="flex flex-col items-center py-1 px-2 text-[11px] font-bold <?= $tab === 'pos' ? 'text-amber-400' : 'hover:text-amber-300' ?>">
-                <i class="fa-solid fa-cash-register text-sm mb-0.5"></i>
-                <span>POS</span>
-            </a>
+            <?php if ($esAdmin || $esCajero): ?>
+                <a href="admin.php?tab=pos" class="flex flex-col items-center py-1 px-2 text-[11px] font-bold <?= $tab === 'pos' ? 'text-amber-400' : 'hover:text-amber-300' ?>">
+                    <i class="fa-solid fa-cash-register text-sm mb-0.5"></i>
+                    <span>POS</span>
+                </a>
+            <?php endif; ?>
             <a href="admin.php?tab=pedidos" class="relative flex flex-col items-center py-1 px-2 text-[11px] font-bold <?= $tab === 'pedidos' ? 'text-amber-400' : 'hover:text-amber-300' ?>">
                 <i class="fa-solid fa-bell-concierge text-sm mb-0.5"></i>
-                <span>Comandas</span>
+                <span><?= $esBarista ? 'Monitor KDS' : 'Comandas' ?></span>
                 <span class="comandas-badge-count absolute -top-0.5 right-1 px-1.5 py-0.2 rounded-full bg-red-500 text-white text-[10px] font-mono font-black <?= $pedidosPendientes > 0 ? '' : 'hidden' ?>">
                     <?= $pedidosPendientes ?>
                 </span>

@@ -57,25 +57,54 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
             }
             redirectToPortal('configuracion', 'admin.php');
 
-        // 1. AUTENTICACIÓN ADMIN / TRABAJADOR
+        // 1. AUTENTICACIÓN POR ROL INDEPENDIENTE (ADMIN, CAJERO, BARISTA, CLIENTE)
         case 'login':
             $email = trim($_POST['email'] ?? '');
             $password = $_POST['password'] ?? '';
-            $rolForzado = $_POST['quick_role'] ?? '';
+            $portalRol = trim($_POST['portal_rol'] ?? $_POST['quick_role'] ?? '');
+            $returnTo = trim($_POST['return_to'] ?? '');
 
-            $res = $db->signIn($email, $password);
+            $res = $db->signIn($email, $password, $portalRol ?: null);
             if ($res['ok']) {
-                if (!empty($rolForzado)) {
-                    $_SESSION['user']['rol'] = $rolForzado;
-                    $_SESSION['user']['nombre'] = ($rolForzado === 'admin') ? 'Administrador General' : 'Trabajador / Barista Turno';
-                }
                 $rolActual = $_SESSION['user']['rol'] ?? 'admin';
-                $tabDestino = ($rolActual === 'admin') ? 'dashboard' : 'pos';
-                setFlash('success', 'Bienvenido(a), ' . ($_SESSION['user']['nombre'] ?? $email) . ' [' . strtoupper($rolActual) . ']');
-                redirectToPortal($tabDestino, 'admin.php');
+                $nombreUser = $_SESSION['user']['nombre'] ?? $email;
+
+                if ($rolActual === 'cliente') {
+                    setFlash('success', '¡Hola, ' . htmlspecialchars($nombreUser) . '! Bienvenido a tu portal del Club del Buen Café.');
+                    header('Location: cliente.php');
+                    exit;
+                }
+
+                $tabDestino = match($rolActual) {
+                    'admin'   => 'dashboard',
+                    'cajero'  => 'pos',
+                    'barista' => 'pedidos',
+                    default   => 'pos'
+                };
+
+                $rolNombres = [
+                    'admin'   => 'Administrador General',
+                    'cajero'  => 'Cajero de Turno / POS',
+                    'barista' => 'Barista / Cocina'
+                ];
+                setFlash('success', 'Bienvenido(a), ' . $nombreUser . ' [' . ($rolNombres[$rolActual] ?? strtoupper($rolActual)) . ']');
+                header('Location: admin.php?tab=' . $tabDestino);
+                exit;
             } else {
                 setFlash('error', $res['error'] ?? 'Error al iniciar sesión');
-                redirectToPortal('login', 'admin.php');
+                if (!empty($returnTo)) {
+                    header('Location: ' . $returnTo);
+                    exit;
+                }
+                $redirectPage = match($portalRol) {
+                    'admin'   => 'login_admin.php',
+                    'cajero'  => 'login_cajero.php',
+                    'barista' => 'login_barista.php',
+                    'cliente' => 'login_cliente.php',
+                    default   => 'login.php'
+                };
+                header('Location: ' . $redirectPage);
+                exit;
             }
 
         case 'register':
@@ -93,9 +122,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
             }
 
         case 'logout':
+            $rolAnterior = $_SESSION['user']['rol'] ?? '';
             unset($_SESSION['user']);
-            setFlash('info', 'Has cerrado sesión en el portal interno.');
-            header('Location: admin.php');
+            setFlash('info', 'Has cerrado tu sesión de forma segura.');
+            if ($rolAnterior === 'cliente') {
+                header('Location: index.php');
+            } else {
+                header('Location: login.php');
+            }
             exit;
 
         // 3. CREAR PEDIDO (DESDE TIENDA PÚBLICA DE CLIENTES O DESDE POS ADMIN)

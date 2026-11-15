@@ -147,27 +147,37 @@ Al enviar, el sistema genera un **Folio Único** (ej. `WEB-3421`), guarda el ped
 
 ---
 
-## 5. Manual de Usuario: Sitio 2 — Portal Interno Administrativo (`admin.php`)
+## 5. Manual de Usuario: Portales de Acceso y Gestión por Roles
 
-El portal interno se encuentra en `http://localhost/La_casa_del_buen_cafe/admin.php` y está diseñado para la administración de la cafetería, caja mostrador y control de inventario.
+El sistema cuenta con una arquitectura de **4 roles completamente independientes**, cada uno con su propio portal de login, validación de credenciales y permisos estrictos:
 
 ```mermaid
-flowchart LR
-    Login["Inicio de Sesión (admin.php)"] --> Roles{Validación de Rol}
-    Roles -->|Administrador| Dash["Panel de Control General"]
-    Roles -->|Cajero / Barista| POS["Caja Mostrador (POS)"]
-    Dash --> Pedidos["Gestión de Pedidos"]
-    Dash --> Inv["Kardex e Inventario"]
-    Dash --> Cat["Catálogo de Productos"]
-    Dash --> Cli["Club de Fidelización"]
-    Dash --> Conf["Configuración MySQL"]
+flowchart TD
+    Selector["Selector de Roles (login.php)"] --> P1["Portal Admin (login_admin.php)"]
+    Selector --> P2["Portal Cajero (login_cajero.php)"]
+    Selector --> P3["Portal Barista (login_barista.php)"]
+    Selector --> P4["Portal Cliente (login_cliente.php)"]
+
+    P1 -->|Rol admin| Dash["Panel Admin: KPIs, Inventario CRUD, DB, POS, Comandas"]
+    P2 -->|Rol cajero| POS["Terminal POS, Cobros, Comandas, Clientes"]
+    P3 -->|Rol barista| KDS["Monitor KDS de Preparación en Cocina y Barra"]
+    P4 -->|Rol cliente| CliPortal["Portal Privado del Cliente (cliente.php)"]
 ```
 
-### 5.1. Control de Acceso y Roles de Usuario
-- **Credenciales por Defecto**:
-  - Administrador: `admin@casadelbuencafe.com` (Contraseña: `admin123`)
-  - Cajero / Barista: `caja@casadelbuencafe.com` (Contraseña: `caja123`)
-- **Acceso Rápido**: El formulario de ingreso incluye botones de 1-clic para alternar entre el rol de Administrador y el rol de Trabajador.
+### 5.1. Control de Acceso y Portales de Login por Rol
+1. **Administrador (`login_admin.php`)**:
+   - **Credenciales**: `admin@casadelbuencafe.com` (Contraseña: `password`)
+   - **Módulos Permitidos**: Dashboard financiero y KPIs, Inventario CRUD completo, Terminal POS, Comandas, Clientes y Configuración de Base de Datos MySQL.
+2. **Cajero / POS (`login_cajero.php`)**:
+   - **Credenciales**: `cajero@casadelbuencafe.com` o `caja@casadelbuencafe.com` (Contraseña: `password`)
+   - **Módulos Permitidos**: Terminal POS para cobros y facturación, Comandas y Registro/Consulta de Clientes. Acceso bloqueado a Dashboard, Inventario y Base de Datos.
+3. **Barista (`login_barista.php`)**:
+   - **Credenciales**: `barista@casadelbuencafe.com` (Contraseña: `password`)
+   - **Módulos Permitidos**: Monitor KDS de Comandas de Cocina/Barra en tiempo real. Acceso restringido exclusivo a preparación y despacho de pedidos.
+4. **Cliente (`login_cliente.php` y `cliente.php`)**:
+   - **Credenciales**: `estefania@ejemplo.com` o cualquier correo registrado (Contraseña: `password`)
+   - **Módulos Permitidos**: Consulta de puntos acumulados en el Club del Café, historial de pedidos en tiempo real y datos de entrega.
+- **Seguridad Antisalteo**: Si un usuario de un rol intenta ingresar por el portal de otro rol, el sistema bloquea el acceso informando el portal correspondiente. Se eliminó el cambio rápido inseguro por URL.
 
 ### 5.2. Pestaña 1: Dashboard de Métricas y Analítica en Vivo
 - **KPIs Principales**:
