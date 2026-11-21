@@ -512,6 +512,128 @@ class SupabaseService {
         return ['ok' => false, 'error' => 'No encontrado'];
     }
 
+    public function getPdo(): ?PDO {
+        return $this->pdo;
+    }
+
+    public function findById(string $table, int $id): ?array {
+        if (!in_array($table, $this->allowedTables, true)) {
+            return null;
+        }
+
+        if ($this->isMySQLConnected && $this->pdo) {
+            try {
+                $start = microtime(true);
+                $stmt = $this->pdo->prepare("SELECT * FROM `{$table}` WHERE `id` = :id LIMIT 1");
+                $stmt->execute([':id' => $id]);
+                $row = $stmt->fetch();
+                $this->dbExecutionTimeMs += (microtime(true) - $start) * 1000;
+                $this->queryCount++;
+                return $row ?: null;
+            } catch (Throwable $e) {}
+        }
+
+        $store = $this->readLocalStore();
+        $rows = $store[$table] ?? [];
+        foreach ($rows as $r) {
+            if ((int)($r['id'] ?? 0) === $id) {
+                return $r;
+            }
+        }
+        return null;
+    }
+
+    public function findOneBy(string $table, string $column, mixed $value): ?array {
+        if (!in_array($table, $this->allowedTables, true)) {
+            return null;
+        }
+        $colClean = preg_replace('/[^a-zA-Z0-9_]/', '', $column);
+
+        if ($this->isMySQLConnected && $this->pdo) {
+            try {
+                $start = microtime(true);
+                $stmt = $this->pdo->prepare("SELECT * FROM `{$table}` WHERE `{$colClean}` = :val LIMIT 1");
+                $stmt->execute([':val' => $value]);
+                $row = $stmt->fetch();
+                $this->dbExecutionTimeMs += (microtime(true) - $start) * 1000;
+                $this->queryCount++;
+                return $row ?: null;
+            } catch (Throwable $e) {}
+        }
+
+        $store = $this->readLocalStore();
+        $rows = $store[$table] ?? [];
+        foreach ($rows as $r) {
+            if (isset($r[$column]) && (string)$r[$column] === (string)$value) {
+                return $r;
+            }
+        }
+        return null;
+    }
+
+    public function selectWhere(string $table, array $criteria = [], array $options = []): array {
+        if (!in_array($table, $this->allowedTables, true)) {
+            return [];
+        }
+
+        $orderCol = 'id';
+        $orderDir = 'ASC';
+        if (isset($options['order'])) {
+            $parts = explode('.', $options['order']);
+            if (!empty($parts[0]) && preg_match('/^[a-zA-Z0-9_]+$/', $parts[0])) {
+                $orderCol = $parts[0];
+            }
+            if (isset($parts[1]) && strtolower($parts[1]) === 'desc') {
+                $orderDir = 'DESC';
+            }
+        }
+
+        $limit = isset($options['limit']) ? (int)$options['limit'] : null;
+
+        if ($this->isMySQLConnected && $this->pdo) {
+            try {
+                $start = microtime(true);
+                $whereClauses = [];
+                $params = [];
+                foreach ($criteria as $col => $val) {
+                    $clean = preg_replace('/[^a-zA-Z0-9_]/', '', $col);
+                    $whereClauses[] = "`{$clean}` = :{$clean}";
+                    $params[":{$clean}"] = $val;
+                }
+                $whereSql = empty($whereClauses) ? '' : 'WHERE ' . implode(' AND ', $whereClauses);
+                $limitSql = $limit ? "LIMIT {$limit}" : '';
+
+                $sql = "SELECT * FROM `{$table}` {$whereSql} ORDER BY `{$orderCol}` {$orderDir} {$limitSql}";
+                $stmt = $this->pdo->prepare($sql);
+                $stmt->execute($params);
+                $rows = $stmt->fetchAll();
+                $this->dbExecutionTimeMs += (microtime(true) - $start) * 1000;
+                $this->queryCount++;
+                return $rows;
+            } catch (Throwable $e) {}
+        }
+
+        $store = $this->readLocalStore();
+        $rows = $store[$table] ?? [];
+        if (!empty($criteria)) {
+            $rows = array_filter($rows, function($r) use ($criteria) {
+                foreach ($criteria as $col => $val) {
+                    if (!isset($r[$col]) || (string)$r[$col] !== (string)$val) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+        }
+        if ($orderDir === 'DESC') {
+            $rows = array_reverse($rows);
+        }
+        if ($limit !== null) {
+            $rows = array_slice($rows, 0, $limit);
+        }
+        return array_values($rows);
+    }
+
     public function signIn(string $email, string $password, ?string $expectedRole = null): array {
         $email = trim(strtolower($email));
         $expectedRole = $expectedRole ? trim(strtolower($expectedRole)) : null;

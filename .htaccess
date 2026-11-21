@@ -2,6 +2,16 @@
 # OPTIMIZACIÓN DE RENDIMIENTO Y CACHÉ - LA CASA DEL BUEN CAFÉ
 # ==============================================================================
 
+# ==============================================================================
+# ENRUTAMIENTO RESTFUL API
+# ==============================================================================
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^api/(.*)$ api/index.php?endpoint=$1 [QSA,L]
+</IfModule>
+
 <IfModule mod_deflate.c>
     # Activar compresión Gzip / Deflate para tipos de texto y JSON
     AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript
