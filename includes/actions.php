@@ -17,11 +17,18 @@ function setFlash(string $type, string $message): void {
     $_SESSION['flash'] = ['type' => $type, 'message' => $message];
 }
 
+function appUrl(string $path = ''): string {
+    $scriptDir = dirname($_SERVER['SCRIPT_NAME'] ?? '');
+    $base = preg_replace('#[/\\\\]includes$#i', '', $scriptDir);
+    $base = rtrim($base, '/\\');
+    return ($base ?: '/La_casa_del_buen_cafe') . '/' . ltrim($path, '/');
+}
+
 function redirectToPortal(string $tab = 'dashboard', string $portal = 'admin.php'): void {
     if ($portal === 'index.php') {
-        header('Location: index.php' . ($tab ? '#' . urlencode($tab) : ''));
+        header('Location: ' . appUrl('index.php' . ($tab ? '#' . urlencode($tab) : '')));
     } else {
-        header('Location: admin.php?tab=' . urlencode($tab));
+        header('Location: ' . appUrl('admin.php?tab=' . urlencode($tab)));
     }
     exit;
 }
@@ -71,7 +78,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
 
                 if ($rolActual === 'cliente') {
                     setFlash('success', '¡Hola, ' . htmlspecialchars($nombreUser) . '! Bienvenido a tu Portal Especial de Clientes.');
-                    header('Location: portal_clientes.php');
+                    header('Location: ' . appUrl('portal_clientes.php'));
                     exit;
                 }
 
@@ -88,7 +95,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
                     'barista' => 'Empleado / Barista'
                 ];
                 setFlash('success', 'Bienvenido(a), ' . $nombreUser . ' [' . ($rolNombres[$rolActual] ?? strtoupper($rolActual)) . ']');
-                header('Location: portal_privado.php?tab=' . $tabDestino);
+                header('Location: ' . appUrl('portal_privado.php?tab=' . $tabDestino));
                 exit;
             } else {
                 setFlash('error', $res['error'] ?? 'Error al iniciar sesión');
@@ -103,7 +110,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
                     'cliente' => 'login_cliente.php',
                     default   => 'login.php'
                 };
-                header('Location: ' . $redirectPage);
+                header('Location: ' . appUrl($redirectPage));
                 exit;
             }
 
@@ -126,9 +133,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
             unset($_SESSION['user']);
             setFlash('info', 'Has cerrado tu sesión de forma segura.');
             if ($rolAnterior === 'cliente') {
-                header('Location: portal_clientes.php');
+                header('Location: ' . appUrl('portal_clientes.php'));
             } else {
-                header('Location: portal_privado.php');
+                header('Location: ' . appUrl('portal_privado.php'));
             }
             exit;
 
